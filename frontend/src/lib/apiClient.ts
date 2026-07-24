@@ -9,6 +9,10 @@ export class ApiRequestError extends Error {
     public status: number,
     public code: string,
     message: string,
+    // Corps complet de la réponse d'erreur — certains endpoints (ex:
+    // l'envoi de commande, Phase 4) renvoient des données exploitables
+    // même en cas d'échec (le message généré, pour un envoi manuel).
+    public body?: Record<string, unknown>,
   ) {
     super(message);
     this.name = 'ApiRequestError';
@@ -18,6 +22,7 @@ export class ApiRequestError extends Error {
 interface ApiErrorBody {
   error: string;
   message: string;
+  [key: string]: unknown;
 }
 
 export async function apiRequest<T>(
@@ -45,7 +50,12 @@ export async function apiRequest<T>(
       // Le serveur n'a pas renvoyé de JSON exploitable (erreur réseau,
       // page d'erreur générique...) — on garde un message générique.
     }
-    throw new ApiRequestError(res.status, body?.error ?? 'UNKNOWN_ERROR', body?.message ?? 'Une erreur est survenue.');
+    throw new ApiRequestError(
+      res.status,
+      body?.error ?? 'UNKNOWN_ERROR',
+      body?.message ?? 'Une erreur est survenue.',
+      body,
+    );
   }
 
   if (res.status === 204) {

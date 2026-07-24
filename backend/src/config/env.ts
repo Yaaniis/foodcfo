@@ -19,6 +19,11 @@ const envSchema = z.object({
   // échoue proprement et bascule sur la saisie manuelle assistée, plutôt
   // que d'empêcher le serveur de démarrer.
   ANTHROPIC_API_KEY: z.string().optional(),
+  // Optionnelles : sans clé/adresse valide, l'envoi d'email de commande
+  // (Phase 4) échoue proprement et le message généré reste disponible
+  // pour un envoi manuel, plutôt que d'empêcher le serveur de démarrer.
+  RESEND_API_KEY: z.string().optional(),
+  RESEND_FROM_EMAIL: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
