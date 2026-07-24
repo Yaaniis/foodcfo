@@ -1,0 +1,33 @@
+# Dépendances
+node_modules/
+
+# Environnement
+.env
+.env.local
+.env.*.local
+
+# Build
+dist/
+build/
+*.tsbuildinfo
+
+# Prisma
+backend/prisma/migrations/dev.db
+
+# Frontend
+frontend/dist/
+.vite/
+
+# Éditeurs / OS
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Fichiers uploadés en local (factures scannées de test)
+backend/uploads/

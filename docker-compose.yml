@@ -1,0 +1,39 @@
+# Docker Compose — environnement de développement local uniquement.
+# Objectif : donner une base PostgreSQL prête en une commande, sans
+# dépendre du réseau ni d'un compte Railway, pour pouvoir lancer
+# `prisma migrate dev` et `prisma db seed` en boucle rapide pendant le
+# développement. Le déploiement réel (Railway) est traité séparément
+# dans le README, à l'étape "Déploiement".
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: foodcfo_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: foodcfo
+      POSTGRES_PASSWORD: foodcfo_dev_password
+      POSTGRES_DB: foodcfo
+    ports:
+      - "5432:5432"
+    volumes:
+      - foodcfo_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U foodcfo"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Interface web légère pour inspecter la base en local sans installer
+  # d'outil supplémentaire (alternative/complément à `prisma studio`).
+  adminer:
+    image: adminer:latest
+    container_name: foodcfo_adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+
+volumes:
+  foodcfo_postgres_data:

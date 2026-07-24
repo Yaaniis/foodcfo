@@ -1,0 +1,21 @@
+{
+  "name": "foodcfo",
+  "private": true,
+  "version": "0.1.0",
+  "description": "FoodCFO — suivi des marges et des coûts pour restaurateurs indépendants",
+  "workspaces": [
+    "backend",
+    "frontend",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev -w backend",
+    "dev:frontend": "npm run dev -w frontend",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "prisma:migrate": "npm run prisma:migrate -w backend",
+    "prisma:seed": "npm run prisma:seed -w backend",
+    "prisma:studio": "npm run prisma:studio -w backend"
+  }
+}

@@ -1,0 +1,550 @@
+// ============================================================================
+// FoodCFO — Schéma de base de données (Prisma / PostgreSQL)
+// ============================================================================
+// Décisions de cadrage appliquées (Phase 0, validées le 22/07/2026) :
+// - Multi-tenant "invisible" : restaurantId présent sur toutes les entités
+//   métier dès le début, même si l'UI n'affiche qu'un seul restaurant pour
+//   l'instant. Aucune migration de refonte ne sera nécessaire plus tard.
+// - 3 rôles utilisateurs : GERANT / CUISINE / SERVICE.
+// - Seuils de marge par défaut configurables par restaurant (70% / 60%).
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+// 3 rôles simples (décision 0.5). GERANT a accès à tout, y compris la
+// gestion des utilisateurs et les paramètres du restaurant.
+enum UserRole {
+  GERANT
+  CUISINE
+  SERVICE
+}
+
+// Canal de commande préféré d'un fournisseur — reflète la réalité terrain
+// (le prompt métier précise que beaucoup de fournisseurs utilisent encore
+// le téléphone ou le fax).
+enum OrderChannel {
+  EMAIL
+  PHONE
+  SMS
+  WHATSAPP
+  WEB_PORTAL
+  FAX
+}
+
+// Unité de mesure des produits achetés. On distingue le poids/volume
+// (nécessaire pour calculer un coût matière précis par recette) des
+// unités entières (ex: une bouteille, une pièce).
+enum ProductUnit {
+  KG
+  G
+  L
+  ML
+  UNITE
+}
+
+// Taux de TVA français applicables en restauration (le taux exact dépend
+// du plat : sur place vs à emporter vs alcool). Stocké en pourcentage.
+enum VatRate {
+  TAUX_5_5
+  TAUX_10
+  TAUX_20
+}
+
+// Les 14 allergènes à déclaration obligatoire en France/UE (règlement
+// INCO). Stockés comme un tableau d'enum sur MenuItem plutôt qu'une table
+// de jointure séparée : la liste est fixe et réglementaire, ça évite une
+// jointure supplémentaire sur une requête très fréquente (affichage carte).
+enum Allergen {
+  GLUTEN
+  CRUSTACES
+  OEUFS
+  POISSON
+  ARACHIDES
+  SOJA
+  LAIT
+  FRUITS_A_COQUE
+  CELERI
+  MOUTARDE
+  SESAME
+  SULFITES
+  LUPIN
+  MOLLUSQUES
+}
+
+// Statut du traitement d'une facture scannée. PENDING_REVIEW = l'OCR a
+// répondu mais un humain doit valider avant que les prix impactent les
+// marges (règle métier explicite : ne jamais faire confiance à 100% à
+// l'OCR).
+enum InvoiceStatus {
+  UPLOADED
+  PROCESSING
+  PENDING_REVIEW
+  VALIDATED
+  ERROR
+}
+
+enum OrderStatus {
+  DRAFT
+  SENT
+  CONFIRMED
+  DELIVERED
+  CANCELLED
+}
+
+enum WasteReason {
+  PERIME
+  ERREUR_PREPARATION
+  INVENDU
+  AUTRE
+}
+
+// Deux types d'alertes distincts car deux règles métier différentes
+// (seuil de marge franchi vs hausse de prix fournisseur détectée).
+enum MarginAlertType {
+  MARGIN_BELOW_THRESHOLD
+  SUPPLIER_PRICE_INCREASE
+}
+
+enum MarginAlertStatus {
+  ACTIVE
+  RESOLVED
+  DISMISSED
+}
+
+// ============================================================================
+// RESTAURANT — racine du multi-tenant
+// ============================================================================
+
+model Restaurant {
+  id        String   @id @default(uuid())
+  name      String
+  currency  String   @default("EUR")
+  timezone  String   @default("Europe/Paris")
+
+  // Seuils de marge par défaut : vert ≥ marginGreenThreshold,
+  // orange entre marginOrangeThreshold et marginGreenThreshold,
+  // rouge < marginOrangeThreshold. Configurables par le gérant
+  // (décision 0.6 : valeurs par défaut 70% / 60%, jamais figées en dur
+  // ailleurs dans le code applicatif).
+  marginGreenThreshold  Decimal @default(70) @db.Decimal(5, 2)
+  marginOrangeThreshold Decimal @default(60) @db.Decimal(5, 2)
+
+  // Seuil (en %) au-delà duquel une hausse de prix fournisseur entre deux
+  // factures déclenche une alerte automatique. Configurable, pas figé.
+  priceIncreaseAlertThreshold Decimal @default(10) @db.Decimal(5, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users        User[]
+  suppliers    Supplier[]
+  products     Product[]
+  menuItems    MenuItem[]
+  invoices     Invoice[]
+  orders       Order[]
+  wasteEntries WasteEntry[]
+  marginAlerts MarginAlert[]
+
+  @@map("restaurants")
+}
+
+// ============================================================================
+// USER — rattaché à un restaurant, rôle simplifié à 3 niveaux
+// ============================================================================
+
+model User {
+  id           String   @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  email        String
+  passwordHash String
+  role         UserRole
+  firstName    String
+  lastName     String
+  isActive     Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  refreshTokens RefreshToken[]
+  wasteEntries  WasteEntry[]
+
+  // L'email doit être unique par restaurant (pas globalement : deux
+  // restaurants distincts pourraient en théorie avoir un utilisateur
+  // avec la même adresse email s'ils sont gérés séparément — rare, mais
+  // évite une contrainte globale artificielle).
+  @@unique([restaurantId, email])
+  @@index([restaurantId])
+  @@map("users")
+}
+
+// Refresh tokens stockés en base pour pouvoir les révoquer individuellement
+// (déconnexion, changement de mot de passe, compromission suspectée).
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tokenHash String   @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ============================================================================
+// SUPPLIER — fournisseurs (boucher, poissonnier, primeur, caviste...)
+// ============================================================================
+
+model Supplier {
+  id           String   @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  name            String
+  category        String       // libre (ex: "Boucherie", "Poissonnerie", "Grossiste")
+  preferredChannel OrderChannel
+  contactEmail    String?
+  contactPhone    String?
+  notes           String?
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products      Product[]
+  priceHistory  PriceHistory[]
+  invoices      Invoice[]
+  orders        Order[]
+
+  @@index([restaurantId])
+  @@map("suppliers")
+}
+
+// ============================================================================
+// PRODUCT — produit acheté à un fournisseur
+// ============================================================================
+
+model Product {
+  id           String   @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+
+  name String
+  unit ProductUnit
+
+  // Dernier prix HT connu — dénormalisé volontairement pour éviter de
+  // recalculer à chaque affichage de fiche technique ; la valeur de
+  // référence "source de vérité" reste PriceHistory, ce champ n'est
+  // qu'un cache mis à jour à chaque nouvelle entrée d'historique.
+  currentPriceHT Decimal @db.Decimal(10, 4)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  priceHistory      PriceHistory[]
+  recipeIngredients RecipeIngredient[]
+  invoiceLineItems  InvoiceLineItem[]
+  orderLineItems    OrderLineItem[]
+  wasteEntries      WasteEntry[]
+
+  @@index([restaurantId])
+  @@index([supplierId])
+  @@map("products")
+}
+
+// ============================================================================
+// PRICE_HISTORY — historique des prix, pour détecter les hausses
+// ============================================================================
+
+model PriceHistory {
+  id         String   @id @default(uuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  priceHT Decimal @db.Decimal(10, 4)
+
+  // Lien optionnel vers la facture qui a généré cette entrée de prix
+  // (traçabilité : "pourquoi ce prix a-t-il changé ?").
+  invoiceId String?
+  invoice   Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  recordedAt DateTime @default(now())
+
+  // Requête très fréquente : "historique de prix d'un produit, du plus
+  // récent au plus ancien" → index composite.
+  @@index([productId, recordedAt])
+  @@map("price_history")
+}
+
+// ============================================================================
+// MENU_ITEM — plat à la carte
+// ============================================================================
+
+model MenuItem {
+  id           String   @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  name             String
+  category         String   // libre (ex: "Entrées", "Plats", "Desserts", "Boissons")
+  sellingPriceTTC  Decimal  @db.Decimal(10, 2)
+  vatRate          VatRate
+  isActive         Boolean  @default(true)
+  allergens        Allergen[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Une fiche technique par plat (relation 1-1). Optionnelle : un plat
+  // peut exister sans fiche technique encore renseignée (onboarding
+  // progressif), mais aucune marge ne peut être calculée tant qu'elle
+  // n'existe pas.
+  recipe Recipe?
+
+  wasteEntries WasteEntry[]
+  marginAlerts MarginAlert[]
+
+  @@index([restaurantId])
+  @@index([restaurantId, isActive])
+  @@map("menu_items")
+}
+
+// ============================================================================
+// RECIPE / RECIPE_INGREDIENT — fiche technique
+// ============================================================================
+
+model Recipe {
+  id         String   @id @default(uuid())
+  menuItemId String   @unique
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ingredients RecipeIngredient[]
+
+  @@map("recipes")
+}
+
+model RecipeIngredient {
+  id       String @id @default(uuid())
+  recipeId String
+  recipe   Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  // Quantité du produit utilisée dans la recette, dans l'unité du produit
+  // (cohérence garantie par Product.unit — pas de re-saisie d'unité ici).
+  quantity Decimal @db.Decimal(10, 4)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Un produit ne doit apparaître qu'une fois par recette (sinon on
+  // additionne les quantités au lieu de créer deux lignes).
+  @@unique([recipeId, productId])
+  @@index([productId])
+  @@map("recipe_ingredients")
+}
+
+// ============================================================================
+// INVOICE / INVOICE_LINE_ITEM — factures fournisseurs scannées
+// ============================================================================
+
+model Invoice {
+  id           String   @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  supplierId String?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  status InvoiceStatus @default(UPLOADED)
+
+  invoiceDate DateTime?
+  totalAmount Decimal?  @db.Decimal(10, 2)
+
+  // Chemin/URL du fichier source (PDF/JPG) stocké (S3-compatible ou
+  // volume local selon l'hébergement retenu).
+  sourceFileUrl String
+
+  // Réponse brute de l'extraction IA (API Claude vision), conservée pour
+  // audit et pour ré-analyser sans re-uploader si le parsing évolue.
+  rawExtractionJson Json?
+
+  // Renseigné si status = ERROR, pour diagnostiquer sans deviner.
+  errorMessage String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lineItems    InvoiceLineItem[]
+  priceHistory PriceHistory[]
+
+  @@index([restaurantId])
+  @@index([restaurantId, status])
+  @@map("invoices")
+}
+
+model InvoiceLineItem {
+  id        String  @id @default(uuid())
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  // productId nullable : au moment de l'extraction OCR, le produit n'est
+  // pas encore rapproché du catalogue interne — c'est justement ce que
+  // l'écran de validation humaine (Phase 3) doit faire.
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  // Libellé brut tel qu'extrait de la facture, avant rapprochement —
+  // toujours conservé même après rapprochement, pour audit.
+  rawLabel String
+
+  quantity       Decimal @db.Decimal(10, 4)
+  unitPriceHT    Decimal @db.Decimal(10, 4)
+  totalPriceHT   Decimal @db.Decimal(10, 2)
+
+  // A été revu/corrigé manuellement par un utilisateur avant validation ?
+  wasManuallyEdited Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([invoiceId])
+  @@index([productId])
+  @@map("invoice_line_items")
+}
+
+// ============================================================================
+// ORDER / ORDER_LINE_ITEM — commandes fournisseurs envoyées
+// ============================================================================
+
+model Order {
+  id           String   @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+
+  status OrderStatus @default(DRAFT)
+  sentAt      DateTime?
+  confirmedAt DateTime?
+  deliveredAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lineItems OrderLineItem[]
+
+  @@index([restaurantId])
+  @@index([restaurantId, status])
+  @@map("orders")
+}
+
+model OrderLineItem {
+  id      String @id @default(uuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  // Quantité suggérée automatiquement (basée sur l'historique de
+  // commande) vs quantité réellement commandée après ajustement humain —
+  // deux champs distincts pour pouvoir mesurer la fiabilité des
+  // suggestions dans le temps.
+  suggestedQuantity Decimal? @db.Decimal(10, 4)
+  quantity          Decimal  @db.Decimal(10, 4)
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_line_items")
+}
+
+// ============================================================================
+// WASTE_ENTRY — gaspillage et pertes
+// ============================================================================
+
+model WasteEntry {
+  id           String   @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  // Une perte concerne soit un produit brut (ex: poisson périmé), soit
+  // un plat fini (ex: assiette invendue) — les deux sont optionnels mais
+  // au moins l'un des deux doit être renseigné (contrainte applicative,
+  // pas modélisable proprement en Prisma seul).
+  productId  String?
+  product    Product?  @relation(fields: [productId], references: [id], onDelete: SetNull)
+  menuItemId String?
+  menuItem   MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+
+  quantity        Decimal     @db.Decimal(10, 4)
+  estimatedValue  Decimal     @db.Decimal(10, 2)
+  reason          WasteReason
+
+  declaredById String
+  declaredBy   User   @relation(fields: [declaredById], references: [id], onDelete: Restrict)
+
+  declaredAt DateTime @default(now())
+
+  // Requête fréquente : "gaspillage du mois, par restaurant" pour la
+  // Phase 5 (stats par catégorie / impact chiffré sur la marge).
+  @@index([restaurantId, declaredAt])
+  @@map("waste_entries")
+}
+
+// ============================================================================
+// MARGIN_ALERT — alertes automatiques
+// ============================================================================
+
+model MarginAlert {
+  id           String   @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  menuItemId String?
+  menuItem   MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  type   MarginAlertType
+  status MarginAlertStatus @default(ACTIVE)
+
+  // Valeurs numériques au moment du déclenchement, pour affichage direct
+  // sans recalcul ("marge tombée à 54%, seuil rouge à 60%").
+  thresholdValue Decimal @db.Decimal(10, 4)
+  currentValue   Decimal @db.Decimal(10, 4)
+
+  message String  // message lisible généré à la création, pas recalculé à l'affichage
+
+  createdAt  DateTime  @default(now())
+  resolvedAt DateTime?
+
+  // Requête très fréquente : "alertes actives d'un restaurant" pour le
+  // tableau de bord.
+  @@index([restaurantId, status])
+  @@map("margin_alerts")
+}
