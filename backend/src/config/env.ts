@@ -15,6 +15,10 @@ const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(1, 'JWT_REFRESH_SECRET est requis'),
   JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
+  // Optionnelle : sans clé valide, l'extraction IA des factures (Phase 3)
+  // échoue proprement et bascule sur la saisie manuelle assistée, plutôt
+  // que d'empêcher le serveur de démarrer.
+  ANTHROPIC_API_KEY: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

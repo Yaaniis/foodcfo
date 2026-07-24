@@ -10,6 +10,8 @@ import TeamPage from './pages/TeamPage';
 import MenuPage from './pages/MenuPage';
 import RecipePage from './pages/RecipePage';
 import SuppliersProductsPage from './pages/SuppliersProductsPage';
+import InvoicesPage from './pages/InvoicesPage';
+import InvoiceReviewPage from './pages/InvoiceReviewPage';
 
 // Phase 1.4 : routing complet + authentification côté client.
 // Phase 1.5 : carte, fiches techniques, fournisseurs/produits.
@@ -32,6 +34,8 @@ function App() {
               <Route path="/menu" element={<MenuPage />} />
               <Route path="/menu/:menuItemId/recipe" element={<RecipePage />} />
               <Route path="/suppliers" element={<SuppliersProductsPage />} />
+              <Route path="/invoices" element={<InvoicesPage />} />
+              <Route path="/invoices/:invoiceId" element={<InvoiceReviewPage />} />
             </Route>
           </Route>
         </Routes>

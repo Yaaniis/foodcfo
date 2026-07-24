@@ -25,8 +25,12 @@ export async function apiRequest<T>(
   options: RequestInit = {},
   accessToken?: string,
 ): Promise<T> {
+  // Pas de Content-Type forcé pour un FormData (upload de fichier) :
+  // le navigateur doit fixer lui-même le boundary multipart, un
+  // Content-Type manuel casserait le parsing côté serveur.
+  const isFormData = options.body instanceof FormData;
   const headers: HeadersInit = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     ...options.headers,
   };

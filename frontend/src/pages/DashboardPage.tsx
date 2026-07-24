@@ -239,6 +239,11 @@ export default function DashboardPage() {
               La carte →
             </Link>
           )}
+          {(user?.role === 'GERANT' || user?.role === 'CUISINE') && (
+            <Link to="/invoices" className="inline-block mr-6 text-slate-900 font-medium underline">
+              Factures →
+            </Link>
+          )}
           {user?.role === 'GERANT' && (
             <Link to="/team" className="inline-block text-slate-900 font-medium underline">
               Gérer l'équipe →
