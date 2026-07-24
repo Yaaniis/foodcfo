@@ -13,7 +13,7 @@ import { prisma } from '../lib/prisma';
 import { logger } from '../lib/logger';
 import { hashPassword } from '../utils/password';
 import { signAccessToken, signRefreshToken, hashToken, expiryDateFromDuration } from '../utils/tokens';
-import { bootstrapRestaurantSchema } from '../schemas/restaurant.schemas';
+import { bootstrapRestaurantSchema, updateThresholdsSchema } from '../schemas/restaurant.schemas';
 import { env } from '../config/env';
 
 export async function bootstrap(req: Request, res: Response) {
@@ -74,4 +74,45 @@ export async function bootstrap(req: Request, res: Response) {
       restaurantId: restaurant.id,
     },
   });
+}
+
+// Renvoie les réglages du restaurant courant (pour l'instant, uniquement
+// les seuils de marge — décision 0.6). Ouvert aux 3 rôles en lecture :
+// le tableau de bord affiche les seuils même en lecture seule.
+export async function getMyRestaurant(req: Request, res: Response) {
+  const restaurant = await prisma.restaurant.findUniqueOrThrow({
+    where: { id: req.user!.restaurantId },
+    select: {
+      id: true,
+      name: true,
+      marginGreenThreshold: true,
+      marginOrangeThreshold: true,
+      priceIncreaseAlertThreshold: true,
+    },
+  });
+  res.json({ restaurant });
+}
+
+// Modification réservée au Gérant (voir restaurant.routes.ts) : changer
+// les seuils d'alerte est une décision de pilotage financier, pas une
+// tâche opérationnelle Cuisine/Service.
+export async function updateThresholds(req: Request, res: Response) {
+  const input = updateThresholdsSchema.parse(req.body);
+
+  const restaurant = await prisma.restaurant.update({
+    where: { id: req.user!.restaurantId },
+    data: {
+      marginGreenThreshold: input.marginGreenThreshold,
+      marginOrangeThreshold: input.marginOrangeThreshold,
+    },
+    select: {
+      id: true,
+      name: true,
+      marginGreenThreshold: true,
+      marginOrangeThreshold: true,
+      priceIncreaseAlertThreshold: true,
+    },
+  });
+
+  res.json({ restaurant });
 }

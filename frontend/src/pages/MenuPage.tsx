@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ApiRequestError } from '../lib/apiClient';
+import { MARGIN_STATUS_STYLES, MARGIN_STATUS_LABELS, type MarginPreview } from '../lib/margin';
 
 interface MenuItem {
   id: string;
@@ -12,6 +13,7 @@ interface MenuItem {
   isActive: boolean;
   allergens: string[];
   recipe: { ingredients: unknown[] } | null;
+  margin: MarginPreview | null;
 }
 
 const VAT_LABELS: Record<string, string> = {
@@ -237,14 +239,23 @@ export default function MenuPage() {
                     </p>
                   )}
                 </div>
-                <button
-                  onClick={() => toggleActive(item)}
-                  className={`shrink-0 min-h-[44px] px-3 rounded-lg text-sm font-medium ${
-                    item.isActive ? 'bg-slate-100 text-slate-700' : 'bg-red-50 text-red-600'
-                  }`}
-                >
-                  {item.isActive ? 'Actif' : 'Inactif'}
-                </button>
+                <div className="shrink-0 flex flex-col items-end gap-1.5">
+                  <button
+                    onClick={() => toggleActive(item)}
+                    className={`min-h-[44px] px-3 rounded-lg text-sm font-medium ${
+                      item.isActive ? 'bg-slate-100 text-slate-700' : 'bg-red-50 text-red-600'
+                    }`}
+                  >
+                    {item.isActive ? 'Actif' : 'Inactif'}
+                  </button>
+                  {item.margin && (
+                    <span
+                      className={`text-xs font-medium px-2 py-1 rounded-lg border ${MARGIN_STATUS_STYLES[item.margin.status]}`}
+                    >
+                      {MARGIN_STATUS_LABELS[item.margin.status]} · {item.margin.marginRatio.toFixed(0)} %
+                    </span>
+                  )}
+                </div>
               </div>
               <Link
                 to={`/menu/${item.id}/recipe`}

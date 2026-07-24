@@ -1,7 +1,8 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ApiRequestError } from '../lib/apiClient';
+import { computeMarginPreview, MARGIN_STATUS_STYLES, MARGIN_STATUS_LABELS } from '../lib/margin';
 
 interface Product {
   id: string;
@@ -18,7 +19,14 @@ interface RecipeIngredientRow {
 interface MenuItemDetail {
   id: string;
   name: string;
+  sellingPriceTTC: string;
+  vatRate: string;
   recipe: { ingredients: { productId: string; quantity: string; product: Product }[] } | null;
+}
+
+interface RestaurantThresholds {
+  marginGreenThreshold: string;
+  marginOrangeThreshold: string;
 }
 
 const UNIT_LABELS: Record<string, string> = {
@@ -29,6 +37,12 @@ const UNIT_LABELS: Record<string, string> = {
   UNITE: 'unité',
 };
 
+const VAT_OPTIONS: { value: string; label: string }[] = [
+  { value: 'TAUX_5_5', label: 'TVA 5,5 % (à emporter)' },
+  { value: 'TAUX_10', label: 'TVA 10 % (sur place)' },
+  { value: 'TAUX_20', label: 'TVA 20 % (alcool)' },
+];
+
 export default function RecipePage() {
   const { menuItemId } = useParams<{ menuItemId: string }>();
   const navigate = useNavigate();
@@ -36,7 +50,13 @@ export default function RecipePage() {
 
   const [menuItem, setMenuItem] = useState<MenuItemDetail | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [thresholds, setThresholds] = useState<{ greenThreshold: number; orangeThreshold: number }>({
+    greenThreshold: 70,
+    orangeThreshold: 60,
+  });
   const [rows, setRows] = useState<RecipeIngredientRow[]>([]);
+  const [price, setPrice] = useState('');
+  const [vatRate, setVatRate] = useState('TAUX_10');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -45,12 +65,19 @@ export default function RecipePage() {
     setIsLoading(true);
     setError(null);
     try {
-      const [itemData, productsData] = await Promise.all([
+      const [itemData, productsData, restaurantData] = await Promise.all([
         authFetch<{ menuItem: MenuItemDetail }>(`/api/menu-items/${menuItemId}`),
         authFetch<{ products: Product[] }>('/api/products'),
+        authFetch<{ restaurant: RestaurantThresholds }>('/api/restaurants/me'),
       ]);
       setMenuItem(itemData.menuItem);
       setProducts(productsData.products);
+      setThresholds({
+        greenThreshold: Number(restaurantData.restaurant.marginGreenThreshold),
+        orangeThreshold: Number(restaurantData.restaurant.marginOrangeThreshold),
+      });
+      setPrice(String(itemData.menuItem.sellingPriceTTC));
+      setVatRate(itemData.menuItem.vatRate);
       const existingRows =
         itemData.menuItem.recipe?.ingredients.map((i) => ({
           productId: i.productId,
@@ -81,6 +108,21 @@ export default function RecipePage() {
     setRows((prev) => prev.filter((_, i) => i !== index));
   }
 
+  // Recalcul en direct à chaque changement d'ingrédient/quantité/prix —
+  // pas d'appel réseau, la formule est dupliquée côté client
+  // (voir frontend/src/lib/margin.ts) pour un retour instantané.
+  const preview = useMemo(() => {
+    if (!menuItem) return null;
+    const ingredients = rows
+      .filter((r) => r.productId && r.quantity)
+      .map((r) => {
+        const product = products.find((p) => p.id === r.productId);
+        return { quantity: Number(r.quantity), unitPriceHT: product ? Number(product.currentPriceHT) : 0 };
+      });
+    if (ingredients.length === 0 || !price) return null;
+    return computeMarginPreview(Number(price), vatRate, ingredients, thresholds);
+  }, [rows, products, price, vatRate, menuItem, thresholds]);
+
   async function handleSave(e: FormEvent) {
     e.preventDefault();
     setError(null);
@@ -94,6 +136,21 @@ export default function RecipePage() {
         method: 'PUT',
         body: JSON.stringify({ ingredients }),
       });
+
+      if (menuItem) {
+        const priceChanged = Number(price) !== Number(menuItem.sellingPriceTTC);
+        const vatChanged = vatRate !== menuItem.vatRate;
+        if (priceChanged || vatChanged) {
+          await authFetch(`/api/menu-items/${menuItemId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+              ...(priceChanged ? { sellingPriceTTC: Number(price) } : {}),
+              ...(vatChanged ? { vatRate } : {}),
+            }),
+          });
+        }
+      }
+
       navigate('/menu');
     } catch (err) {
       setError(err instanceof ApiRequestError ? err.message : "Impossible d'enregistrer la fiche technique.");
@@ -124,6 +181,34 @@ export default function RecipePage() {
           </p>
         ) : (
           <form onSubmit={handleSave} className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block text-sm font-medium text-slate-700">
+                Prix de vente TTC (€)
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  className="mt-1 w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
+                />
+              </label>
+              <label className="block text-sm font-medium text-slate-700">
+                TVA
+                <select
+                  value={vatRate}
+                  onChange={(e) => setVatRate(e.target.value)}
+                  className="mt-1 w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
+                >
+                  {VAT_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
             {rows.map((row, index) => (
               <div key={index} className="flex gap-2 items-center">
                 <select
@@ -159,6 +244,25 @@ export default function RecipePage() {
             <button type="button" onClick={addRow} className="text-sm text-slate-900 underline font-medium">
               + Ajouter un ingrédient
             </button>
+
+            {preview && (
+              <div className={`rounded-lg border p-4 ${MARGIN_STATUS_STYLES[preview.status]}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="font-medium">{MARGIN_STATUS_LABELS[preview.status]}</p>
+                  <p className="text-sm font-semibold">{preview.marginRatio.toFixed(1)} % de marge</p>
+                </div>
+                <div className="text-sm grid grid-cols-2 gap-1 opacity-90">
+                  <span>Coût matière HT</span>
+                  <span className="text-right">{preview.costHT.toFixed(2)} €</span>
+                  <span>Marge</span>
+                  <span className="text-right">{preview.marginEuros.toFixed(2)} €</span>
+                  <span title="Prix de vente TTC ÷ coût matière HT — indique combien de fois le prix de vente couvre le coût des ingrédients.">
+                    Coefficient multiplicateur ⓘ
+                  </span>
+                  <span className="text-right">{preview.coefficient !== null ? `×${preview.coefficient.toFixed(2)}` : '—'}</span>
+                </div>
+              </div>
+            )}
 
             {error && (
               <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>

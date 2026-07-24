@@ -1,5 +1,8 @@
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { ApiRequestError } from '../lib/apiClient';
+import { MARGIN_STATUS_STYLES, MARGIN_STATUS_LABELS, type MarginPreview } from '../lib/margin';
 
 const ROLE_LABELS = {
   GERANT: 'Gérant',
@@ -7,8 +10,87 @@ const ROLE_LABELS = {
   SERVICE: 'Service',
 } as const;
 
+interface DashboardMenuItem {
+  id: string;
+  name: string;
+  category: string;
+  sellingPriceTTC: string;
+  margin: MarginPreview | null;
+}
+
+interface DashboardData {
+  thresholds: { greenThreshold: number; orangeThreshold: number };
+  kpis: {
+    totalActiveMenuItems: number;
+    missingRecipeCount: number;
+    greenCount: number;
+    orangeCount: number;
+    redCount: number;
+    averageMarginRatio: number | null;
+    potentialSavings: number;
+  };
+  menuItems: DashboardMenuItem[];
+}
+
+function formatEuros(value: number): string {
+  return value.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 export default function DashboardPage() {
-  const { user, logout } = useAuth();
+  const { user, logout, authFetch } = useAuth();
+
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [showThresholds, setShowThresholds] = useState(false);
+  const [greenInput, setGreenInput] = useState('');
+  const [orangeInput, setOrangeInput] = useState('');
+  const [thresholdsError, setThresholdsError] = useState<string | null>(null);
+  const [isSavingThresholds, setIsSavingThresholds] = useState(false);
+
+  async function load() {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const dashboard = await authFetch<DashboardData>('/api/dashboard');
+      setData(dashboard);
+      setGreenInput(String(dashboard.thresholds.greenThreshold));
+      setOrangeInput(String(dashboard.thresholds.orangeThreshold));
+    } catch (err) {
+      setError(err instanceof ApiRequestError ? err.message : 'Impossible de charger le tableau de bord.');
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleSaveThresholds(e: FormEvent) {
+    e.preventDefault();
+    setThresholdsError(null);
+    setIsSavingThresholds(true);
+    try {
+      await authFetch('/api/restaurants/me/thresholds', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          marginGreenThreshold: Number(greenInput),
+          marginOrangeThreshold: Number(orangeInput),
+        }),
+      });
+      setShowThresholds(false);
+      await load();
+    } catch (err) {
+      setThresholdsError(
+        err instanceof ApiRequestError ? err.message : "Impossible d'enregistrer les seuils.",
+      );
+    } finally {
+      setIsSavingThresholds(false);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8">
@@ -30,18 +112,135 @@ export default function DashboardPage() {
           </button>
         </div>
 
+        {isLoading && <p className="text-slate-500">Chargement…</p>}
+        {error && <p className="text-red-600">{error}</p>}
+
+        {data && (
+          <>
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-slate-900">Santé des marges</h2>
+                {user?.role === 'GERANT' && (
+                  <button
+                    onClick={() => setShowThresholds((v) => !v)}
+                    className="text-sm text-slate-500 underline"
+                  >
+                    {showThresholds ? 'Annuler' : 'Régler les seuils'}
+                  </button>
+                )}
+              </div>
+
+              {showThresholds && (
+                <form
+                  onSubmit={handleSaveThresholds}
+                  className="mb-6 p-4 rounded-lg bg-slate-50 border border-slate-200 space-y-3"
+                >
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="text-sm text-slate-600">
+                      Seuil vert (%)
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        value={greenInput}
+                        onChange={(e) => setGreenInput(e.target.value)}
+                        className="mt-1 w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
+                      />
+                    </label>
+                    <label className="text-sm text-slate-600">
+                      Seuil orange (%)
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        value={orangeInput}
+                        onChange={(e) => setOrangeInput(e.target.value)}
+                        className="mt-1 w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
+                      />
+                    </label>
+                  </div>
+                  {thresholdsError && <p className="text-sm text-red-600">{thresholdsError}</p>}
+                  <button
+                    type="submit"
+                    disabled={isSavingThresholds}
+                    className="min-h-[44px] px-4 rounded-lg bg-slate-900 text-white font-medium disabled:opacity-50"
+                  >
+                    {isSavingThresholds ? 'Enregistrement…' : 'Enregistrer les seuils'}
+                  </button>
+                </form>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-4 rounded-lg bg-slate-50">
+                  <p className="text-xs text-slate-500">Marge moyenne</p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {data.kpis.averageMarginRatio !== null ? `${data.kpis.averageMarginRatio.toFixed(1)} %` : '—'}
+                  </p>
+                </div>
+                <div className="p-4 rounded-lg bg-slate-50">
+                  <p className="text-xs text-slate-500">Économies potentielles</p>
+                  <p className="text-2xl font-bold text-slate-900">{formatEuros(data.kpis.potentialSavings)} €</p>
+                </div>
+                <div className="p-4 rounded-lg bg-emerald-50">
+                  <p className="text-xs text-emerald-700">Plats en bonne santé</p>
+                  <p className="text-2xl font-bold text-emerald-700">{data.kpis.greenCount}</p>
+                </div>
+                <div className="p-4 rounded-lg bg-red-50">
+                  <p className="text-xs text-red-700">Plats en alerte</p>
+                  <p className="text-2xl font-bold text-red-700">{data.kpis.orangeCount + data.kpis.redCount}</p>
+                </div>
+              </div>
+
+              {data.kpis.missingRecipeCount > 0 && (
+                <p className="text-sm text-slate-500 mt-4">
+                  {data.kpis.missingRecipeCount} plat(s) actif(s) sans fiche technique — marge non calculable.{' '}
+                  <Link to="/menu" className="underline font-medium">
+                    Compléter la carte →
+                  </Link>
+                </p>
+              )}
+            </div>
+
+            {data.menuItems.length > 0 && (
+              <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-4">
+                <h2 className="text-lg font-semibold text-slate-900 mb-4">Plats</h2>
+                <ul className="space-y-2">
+                  {data.menuItems.map((item) => (
+                    <li key={item.id} className="flex items-center justify-between gap-3 py-2">
+                      <div className="min-w-0">
+                        <p className="font-medium text-slate-900 truncate">{item.name}</p>
+                        <p className="text-sm text-slate-500">
+                          {item.category} · {Number(item.sellingPriceTTC).toFixed(2)} € TTC
+                          {item.margin && ` · marge ${item.margin.marginRatio.toFixed(1)} %`}
+                        </p>
+                      </div>
+                      <span
+                        className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-lg border ${
+                          item.margin
+                            ? MARGIN_STATUS_STYLES[item.margin.status]
+                            : 'bg-slate-50 text-slate-500 border-slate-200'
+                        }`}
+                      >
+                        {item.margin ? MARGIN_STATUS_LABELS[item.margin.status] : 'Fiche manquante'}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </>
+        )}
+
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <p className="text-slate-500">
-            Le tableau de bord "Santé des marges" arrive en Phase 2. Pour l'instant, la connexion et la gestion
-            d'équipe sont en place et fonctionnelles.
-          </p>
           {(user?.role === 'GERANT' || user?.role === 'CUISINE') && (
-            <Link to="/menu" className="inline-block mt-4 mr-6 text-slate-900 font-medium underline">
+            <Link to="/menu" className="inline-block mr-6 text-slate-900 font-medium underline">
               La carte →
             </Link>
           )}
           {user?.role === 'GERANT' && (
-            <Link to="/team" className="inline-block mt-4 text-slate-900 font-medium underline">
+            <Link to="/team" className="inline-block text-slate-900 font-medium underline">
               Gérer l'équipe →
             </Link>
           )}
