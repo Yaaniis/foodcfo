@@ -28,6 +28,7 @@ interface DashboardData {
     redCount: number;
     averageMarginRatio: number | null;
     potentialSavings: number;
+    wasteThisMonth: number;
   };
   menuItems: DashboardMenuItem[];
 }
@@ -191,6 +192,15 @@ export default function DashboardPage() {
                   <p className="text-xs text-red-700">Plats en alerte</p>
                   <p className="text-2xl font-bold text-red-700">{data.kpis.orangeCount + data.kpis.redCount}</p>
                 </div>
+                <div className="p-4 rounded-lg bg-slate-50 col-span-2">
+                  <p className="text-xs text-slate-500">Gaspillage ce mois-ci</p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {formatEuros(data.kpis.wasteThisMonth)} €{' '}
+                    <Link to="/waste" className="text-sm font-medium underline">
+                      Détail →
+                    </Link>
+                  </p>
+                </div>
               </div>
 
               {data.kpis.missingRecipeCount > 0 && (
@@ -247,6 +257,11 @@ export default function DashboardPage() {
           {(user?.role === 'GERANT' || user?.role === 'CUISINE') && (
             <Link to="/orders" className="inline-block mr-6 text-slate-900 font-medium underline">
               Commandes →
+            </Link>
+          )}
+          {(user?.role === 'GERANT' || user?.role === 'CUISINE') && (
+            <Link to="/waste" className="inline-block mr-6 text-slate-900 font-medium underline">
+              Gaspillage →
             </Link>
           )}
           {user?.role === 'GERANT' && (

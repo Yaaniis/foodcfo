@@ -14,6 +14,7 @@ import InvoicesPage from './pages/InvoicesPage';
 import InvoiceReviewPage from './pages/InvoiceReviewPage';
 import OrdersPage from './pages/OrdersPage';
 import OrderDetailPage from './pages/OrderDetailPage';
+import WastePage from './pages/WastePage';
 
 // Phase 1.4 : routing complet + authentification côté client.
 // Phase 1.5 : carte, fiches techniques, fournisseurs/produits.
@@ -40,6 +41,7 @@ function App() {
               <Route path="/invoices/:invoiceId" element={<InvoiceReviewPage />} />
               <Route path="/orders" element={<OrdersPage />} />
               <Route path="/orders/:orderId" element={<OrderDetailPage />} />
+              <Route path="/waste" element={<WastePage />} />
             </Route>
           </Route>
         </Routes>

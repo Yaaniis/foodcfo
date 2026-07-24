@@ -11,13 +11,24 @@ import { computeMenuItemMargin } from './menuItem.controller';
 // part pour inciter à compléter la fiche plutôt que d'être ignoré
 // silencieusement.
 export async function getDashboard(req: Request, res: Response) {
-  const [menuItems, thresholds] = await Promise.all([
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+  const [menuItems, thresholds, wasteAggregate] = await Promise.all([
     prisma.menuItem.findMany({
       where: { restaurantId: req.user!.restaurantId, isActive: true },
       include: { recipe: { include: { ingredients: { include: { product: true } } } } },
       orderBy: [{ category: 'asc' }, { name: 'asc' }],
     }),
     getRestaurantThresholds(req.user!.restaurantId),
+    // Impact chiffré du gaspillage sur la marge du mois (Phase 5) :
+    // affiché ici plutôt que seulement sur l'écran dédié, puisque c'est
+    // littéralement de la marge perdue.
+    prisma.wasteEntry.aggregate({
+      where: { restaurantId: req.user!.restaurantId, declaredAt: { gte: monthStart, lt: monthEnd } },
+      _sum: { estimatedValue: true },
+    }),
   ]);
 
   const withMargin = menuItems.map((item) => ({
@@ -62,6 +73,7 @@ export async function getDashboard(req: Request, res: Response) {
       redCount,
       averageMarginRatio,
       potentialSavings,
+      wasteThisMonth: Number(wasteAggregate._sum.estimatedValue ?? 0),
     },
     menuItems: withMargin,
   });

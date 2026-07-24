@@ -24,6 +24,7 @@ import { menuItemRouter } from './routes/menuItem.routes';
 import { dashboardRouter } from './routes/dashboard.routes';
 import { invoiceRouter } from './routes/invoice.routes';
 import { orderRouter } from './routes/order.routes';
+import { wasteRouter } from './routes/waste.routes';
 import { requireAuth } from './middleware/auth';
 import { errorHandler } from './middleware/errorHandler';
 import { asyncHandler } from './utils/asyncHandler';
@@ -56,6 +57,7 @@ app.use('/api/menu-items', menuItemRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/invoices', invoiceRouter);
 app.use('/api/orders', orderRouter);
+app.use('/api/waste', wasteRouter);
 
 // Renvoie le profil complet de l'utilisateur connecté — interroge la
 // base plutôt que de se contenter du contenu du token, pour que le
