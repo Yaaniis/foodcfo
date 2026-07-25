@@ -13,9 +13,15 @@ import { prisma } from '../lib/prisma';
 import { logger } from '../lib/logger';
 import { hashPassword } from '../utils/password';
 import { signAccessToken, signRefreshToken, hashToken, expiryDateFromDuration } from '../utils/tokens';
-import { bootstrapRestaurantSchema, updateThresholdsSchema } from '../schemas/restaurant.schemas';
+import {
+  bootstrapRestaurantSchema,
+  updateThresholdsSchema,
+  addRestaurantSchema,
+  switchRestaurantSchema,
+} from '../schemas/restaurant.schemas';
 import { deleteRestaurantSchema } from '../schemas/dataPrivacy.schemas';
 import { env } from '../config/env';
+import { gatherDashboardData } from './dashboard.controller';
 
 export async function bootstrap(req: Request, res: Response) {
   const { restaurantName, currency, timezone, gerant } = bootstrapRestaurantSchema.parse(req.body);
@@ -174,6 +180,172 @@ export async function deleteRestaurant(req: Request, res: Response) {
 
   logger.info({ restaurantId, userId: req.user!.id }, 'Restaurant supprimé sur demande RGPD');
   res.status(204).send();
+}
+
+// Ajoute un restaurant supplémentaire au compte du Gérant déjà
+// authentifié — pour un gérant de petite chaîne (2 à 10 établissements,
+// public visé par le prompt d'origine, décision 0.1). Contrairement à
+// bootstrap (public, tout premier compte), on ne redemande jamais de
+// mot de passe : le hash existant est copié tel quel sur la nouvelle
+// ligne User, l'email aussi — c'est ce qui permet à `login` de
+// retrouver plus tard tous les restaurants liés à cette même personne.
+// Connecte directement sur le nouveau restaurant (mêmes tokens qu'un
+// bootstrap ou un login classique), comme la création du tout premier
+// restaurant.
+export async function addRestaurant(req: Request, res: Response) {
+  const { restaurantName, currency, timezone } = addRestaurantSchema.parse(req.body);
+
+  const currentUser = await prisma.user.findUniqueOrThrow({ where: { id: req.user!.id } });
+
+  const restaurant = await prisma.restaurant.create({
+    data: {
+      name: restaurantName,
+      currency,
+      timezone,
+      users: {
+        create: {
+          email: currentUser.email,
+          passwordHash: currentUser.passwordHash,
+          role: 'GERANT',
+          firstName: currentUser.firstName,
+          lastName: currentUser.lastName,
+        },
+      },
+    },
+    include: { users: true },
+  });
+
+  const newUser = restaurant.users[0];
+  const accessToken = signAccessToken({ sub: newUser.id, restaurantId: restaurant.id, role: newUser.role });
+  const refreshToken = signRefreshToken(newUser.id);
+
+  await prisma.refreshToken.create({
+    data: {
+      userId: newUser.id,
+      tokenHash: hashToken(refreshToken),
+      expiresAt: expiryDateFromDuration(env.JWT_REFRESH_EXPIRES_IN),
+    },
+  });
+
+  logger.info(
+    { restaurantId: restaurant.id, userId: newUser.id, linkedFromUserId: currentUser.id },
+    'Restaurant supplémentaire ajouté à un compte existant',
+  );
+
+  return res.status(201).json({
+    accessToken,
+    refreshToken,
+    user: {
+      id: newUser.id,
+      email: newUser.email,
+      firstName: newUser.firstName,
+      lastName: newUser.lastName,
+      role: newUser.role,
+      restaurantId: restaurant.id,
+    },
+    restaurant: { id: restaurant.id, name: restaurant.name },
+  });
+}
+
+// Liste tous les restaurants liés au compte de la personne connectée
+// (même email, toutes ses lignes User actives) — alimente le
+// sélecteur/switcher de restaurant du frontend.
+export async function listMyRestaurants(req: Request, res: Response) {
+  const currentUser = await prisma.user.findUniqueOrThrow({ where: { id: req.user!.id } });
+
+  const memberships = await prisma.user.findMany({
+    where: { email: currentUser.email, isActive: true },
+    select: { restaurantId: true, role: true, restaurant: { select: { id: true, name: true } } },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  res.json({
+    restaurants: memberships.map((m) => ({
+      id: m.restaurant.id,
+      name: m.restaurant.name,
+      role: m.role,
+      isCurrent: m.restaurantId === req.user!.restaurantId,
+    })),
+  });
+}
+
+// Change le restaurant actif sans se déconnecter/reconnecter — vérifie
+// que la personne a bien une ligne User (même email) sur le restaurant
+// visé avant d'émettre de nouveaux tokens pour ce contexte.
+export async function switchRestaurant(req: Request, res: Response) {
+  const { restaurantId } = switchRestaurantSchema.parse(req.body);
+
+  const currentUser = await prisma.user.findUniqueOrThrow({ where: { id: req.user!.id } });
+  const target = await prisma.user.findFirst({
+    where: { email: currentUser.email, restaurantId, isActive: true },
+  });
+  if (!target) {
+    return res.status(403).json({ error: 'FORBIDDEN', message: "Tu n'as pas accès à ce restaurant." });
+  }
+
+  const accessToken = signAccessToken({ sub: target.id, restaurantId: target.restaurantId, role: target.role });
+  const refreshToken = signRefreshToken(target.id);
+
+  await prisma.refreshToken.create({
+    data: {
+      userId: target.id,
+      tokenHash: hashToken(refreshToken),
+      expiresAt: expiryDateFromDuration(env.JWT_REFRESH_EXPIRES_IN),
+    },
+  });
+
+  res.json({
+    accessToken,
+    refreshToken,
+    user: {
+      id: target.id,
+      email: target.email,
+      firstName: target.firstName,
+      lastName: target.lastName,
+      role: target.role,
+      restaurantId: target.restaurantId,
+    },
+  });
+}
+
+// Vue consolidée multi-restaurants (Phase 6+, chantier reporté puis
+// repris sur demande explicite le 25/07/2026) : agrège la même
+// donnée que le tableau de bord (Phase 2), un appel par restaurant lié
+// au compte, plus des totaux/moyennes globaux. Une marge moyenne
+// pondérée par plat (pas une simple moyenne de moyennes) donnerait un
+// résultat plus juste, mais demanderait de sortir les plats bruts par
+// restaurant ; la moyenne simple est un compromis assumé et documenté,
+// ajustable si besoin plus tard.
+export async function getConsolidatedDashboard(req: Request, res: Response) {
+  const currentUser = await prisma.user.findUniqueOrThrow({ where: { id: req.user!.id } });
+
+  const memberships = await prisma.user.findMany({
+    where: { email: currentUser.email, isActive: true },
+    select: { restaurantId: true, restaurant: { select: { id: true, name: true } } },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  const perRestaurant = await Promise.all(
+    memberships.map(async (m) => ({
+      restaurantId: m.restaurant.id,
+      restaurantName: m.restaurant.name,
+      ...(await gatherDashboardData(m.restaurant.id)),
+    })),
+  );
+
+  const withMargin = perRestaurant.filter((r) => r.kpis.averageMarginRatio !== null);
+  const totals = {
+    restaurantCount: perRestaurant.length,
+    averageMarginRatio:
+      withMargin.length > 0
+        ? withMargin.reduce((sum, r) => sum + (r.kpis.averageMarginRatio ?? 0), 0) / withMargin.length
+        : null,
+    totalPotentialSavings: perRestaurant.reduce((sum, r) => sum + r.kpis.potentialSavings, 0),
+    totalWasteThisMonth: perRestaurant.reduce((sum, r) => sum + r.kpis.wasteThisMonth, 0),
+    totalRedAlerts: perRestaurant.reduce((sum, r) => sum + r.kpis.redCount, 0),
+  };
+
+  res.json({ totals, restaurants: perRestaurant });
 }
 
 // Modification réservée au Gérant (voir restaurant.routes.ts) : changer

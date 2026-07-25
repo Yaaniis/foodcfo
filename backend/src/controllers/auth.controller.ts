@@ -21,18 +21,52 @@ import { loginSchema, refreshSchema } from '../schemas/auth.schemas';
 import { env } from '../config/env';
 
 export async function login(req: Request, res: Response) {
-  const { email, password } = loginSchema.parse(req.body);
+  const { email, password, restaurantId } = loginSchema.parse(req.body);
 
-  // NOTE (décision 0.1 — multi-tenant "invisible") : tant qu'un seul
-  // restaurant existe réellement, on cherche l'utilisateur par email
-  // seul. Le schéma garantit l'unicité de l'email par restaurant (pas
-  // globalement) — si plusieurs restaurants coexistent un jour avec des
-  // emails en doublon entre eux, cette recherche devra être précisée
-  // (ex : sous-domaine ou sélecteur de restaurant à la connexion).
-  const user = await prisma.user.findFirst({ where: { email, isActive: true } });
+  // Compte multi-restaurant (voir POST /api/restaurants/add) : la même
+  // personne peut avoir une ligne User par restaurant, avec le même
+  // email et le même hash de mot de passe (copié à la création du
+  // deuxième restaurant, jamais re-saisi). Le schéma garantit
+  // l'unicité de l'email par restaurant, pas globalement — on doit
+  // donc vérifier le mot de passe contre chaque ligne correspondant à
+  // cet email, pas juste prendre la première trouvée.
+  const candidates = await prisma.user.findMany({ where: { email, isActive: true } });
+  const matches = [];
+  for (const candidate of candidates) {
+    if (await verifyPassword(candidate.passwordHash, password)) {
+      matches.push(candidate);
+    }
+  }
 
-  if (!user || !(await verifyPassword(user.passwordHash, password))) {
+  if (matches.length === 0) {
     return res.status(401).json({ error: 'INVALID_CREDENTIALS', message: 'Email ou mot de passe incorrect.' });
+  }
+
+  let user = matches[0];
+  if (matches.length > 1) {
+    if (restaurantId) {
+      const chosen = matches.find((m) => m.restaurantId === restaurantId);
+      if (!chosen) {
+        return res.status(401).json({ error: 'INVALID_CREDENTIALS', message: 'Email ou mot de passe incorrect.' });
+      }
+      user = chosen;
+    } else {
+      // Pas de restaurant précisé : on ne devine jamais lequel choisir,
+      // on renvoie la liste pour que le frontend affiche un sélecteur
+      // (voir la note d'origine sur décision 0.1, désormais implémentée).
+      const restaurants = await prisma.restaurant.findMany({
+        where: { id: { in: matches.map((m) => m.restaurantId) } },
+        select: { id: true, name: true },
+      });
+      return res.json({
+        requiresRestaurantSelection: true,
+        restaurants: matches.map((m) => ({
+          restaurantId: m.restaurantId,
+          restaurantName: restaurants.find((r) => r.id === m.restaurantId)?.name ?? '',
+          role: m.role,
+        })),
+      });
+    }
   }
 
   const accessToken = signAccessToken({ sub: user.id, restaurantId: user.restaurantId, role: user.role });

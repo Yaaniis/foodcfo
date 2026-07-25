@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { ApiRequestError } from '../lib/apiClient';
 import { MARGIN_STATUS_STYLES, MARGIN_STATUS_LABELS, type MarginPreview } from '../lib/margin';
 import { useOnlineStatus } from '../lib/useOnlineStatus';
+import RestaurantSwitcher from '../components/RestaurantSwitcher';
 
 const ROLE_LABELS = {
   GERANT: 'Gérant',
@@ -114,6 +115,8 @@ export default function DashboardPage() {
             Déconnexion
           </button>
         </div>
+
+        <RestaurantSwitcher />
 
         {!isOnline && (
           <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">

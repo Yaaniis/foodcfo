@@ -34,6 +34,21 @@ interface LoginResponse extends AuthTokens {
 
 interface RefreshResponse extends AuthTokens {}
 
+// Compte lié à plusieurs restaurants (même email/mot de passe, voir
+// POST /api/restaurants/add) : le login renvoie cette forme au lieu de
+// tokens directement quand plusieurs restaurants correspondent, pour
+// que l'écran de connexion propose un sélecteur.
+export interface RestaurantChoice {
+  restaurantId: string;
+  restaurantName: string;
+  role: UserRole;
+}
+
+interface RestaurantSelectionResponse {
+  requiresRestaurantSelection: true;
+  restaurants: RestaurantChoice[];
+}
+
 export interface BootstrapRestaurantPayload {
   restaurantName: string;
   gerant: {
@@ -42,6 +57,13 @@ export interface BootstrapRestaurantPayload {
     firstName: string;
     lastName: string;
   };
+}
+
+export interface LinkedRestaurant {
+  id: string;
+  name: string;
+  role: UserRole;
+  isCurrent: boolean;
 }
 
 interface StoredSession extends AuthTokens {
@@ -70,7 +92,12 @@ function persistSession(session: StoredSession | null) {
 interface AuthContextValue {
   user: AuthUser | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  // Renvoie `undefined` en cas de connexion réussie directe (compte à un
+  // seul restaurant, cas le plus courant), ou la liste des restaurants
+  // à choisir si le même email/mot de passe correspond à plusieurs
+  // comptes liés — l'appelant doit alors rappeler `login` avec le
+  // troisième argument renseigné.
+  login: (email: string, password: string, restaurantId?: string) => Promise<RestaurantChoice[] | undefined>;
   createRestaurant: (payload: BootstrapRestaurantPayload) => Promise<void>;
   logout: () => Promise<void>;
   // Pour les futurs appels API authentifiés (Phase 1.5+) : injecte le
@@ -80,6 +107,11 @@ interface AuthContextValue {
   // téléchargement d'un export CSV, Phase 6 — pas de JSON à parser,
   // donc pas via apiRequest<T>).
   accessToken: string | null;
+  // Multi-restaurant (décision 0.1, repris le 25/07/2026) : ajoute un
+  // restaurant au compte courant et bascule directement dessus.
+  addRestaurant: (restaurantName: string) => Promise<void>;
+  // Change le restaurant actif sans se déconnecter/reconnecter.
+  switchRestaurant: (restaurantId: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -107,12 +139,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     persistSession({ ...tokens, user: sessionUser });
   }
 
-  async function login(email: string, password: string) {
-    const data = await apiRequest<LoginResponse>('/api/auth/login', {
+  async function login(email: string, password: string, restaurantId?: string) {
+    const data = await apiRequest<LoginResponse | RestaurantSelectionResponse>('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, restaurantId }),
     });
+    if ('requiresRestaurantSelection' in data) {
+      return data.restaurants;
+    }
     applySession({ accessToken: data.accessToken, refreshToken: data.refreshToken }, data.user);
+    return undefined;
   }
 
   async function createRestaurant(payload: BootstrapRestaurantPayload) {
@@ -120,6 +156,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+    applySession({ accessToken: data.accessToken, refreshToken: data.refreshToken }, data.user);
+  }
+
+  async function addRestaurant(restaurantName: string) {
+    const data = await apiRequest<LoginResponse>(
+      '/api/restaurants/add',
+      { method: 'POST', body: JSON.stringify({ restaurantName }) },
+      accessToken ?? undefined,
+    );
+    applySession({ accessToken: data.accessToken, refreshToken: data.refreshToken }, data.user);
+  }
+
+  async function switchRestaurant(restaurantId: string) {
+    const data = await apiRequest<LoginResponse>(
+      '/api/restaurants/switch',
+      { method: 'POST', body: JSON.stringify({ restaurantId }) },
+      accessToken ?? undefined,
+    );
     applySession({ accessToken: data.accessToken, refreshToken: data.refreshToken }, data.user);
   }
 
@@ -168,7 +222,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, createRestaurant, logout, authFetch, accessToken }}>
+    <AuthContext.Provider
+      value={{ user, isLoading, login, createRestaurant, logout, authFetch, accessToken, addRestaurant, switchRestaurant }}
+    >
       {children}
     </AuthContext.Provider>
   );

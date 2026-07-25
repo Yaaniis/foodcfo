@@ -29,3 +29,21 @@ export const updateThresholdsSchema = z
   });
 
 export type UpdateThresholdsInput = z.infer<typeof updateThresholdsSchema>;
+
+// Ajout d'un restaurant supplémentaire au compte du Gérant déjà
+// connecté — pas de mot de passe à ressaisir (contrairement à
+// bootstrap, réservé aux tout premiers comptes non authentifiés) : le
+// hash existant est copié tel quel, voir restaurant.controller.ts.
+export const addRestaurantSchema = z.object({
+  restaurantName: z.string().min(1, 'Le nom du restaurant est requis.'),
+  currency: z.string().default('EUR'),
+  timezone: z.string().default('Europe/Paris'),
+});
+
+export type AddRestaurantInput = z.infer<typeof addRestaurantSchema>;
+
+export const switchRestaurantSchema = z.object({
+  restaurantId: z.string().min(1, 'Identifiant de restaurant requis.'),
+});
+
+export type SwitchRestaurantInput = z.infer<typeof switchRestaurantSchema>;
