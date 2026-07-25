@@ -24,6 +24,16 @@ const envSchema = z.object({
   // pour un envoi manuel, plutôt que d'empêcher le serveur de démarrer.
   RESEND_API_KEY: z.string().optional(),
   RESEND_FROM_EMAIL: z.string().optional(),
+  // Optionnelles : envoi de commande par WhatsApp Business (Meta Cloud
+  // API) — canal préféré de certains fournisseurs (Supplier.preferredChannel),
+  // à côté de l'email. Sans clé valide, repli sur le message généré à
+  // copier manuellement, même principe que l'email.
+  WHATSAPP_ACCESS_TOKEN: z.string().optional(),
+  WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
+  // Optionnelles : envoi de commande par SMS (Twilio).
+  TWILIO_ACCOUNT_SID: z.string().optional(),
+  TWILIO_AUTH_TOKEN: z.string().optional(),
+  TWILIO_FROM_NUMBER: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

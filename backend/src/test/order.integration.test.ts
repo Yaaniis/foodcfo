@@ -28,11 +28,22 @@ describe('Commandes fournisseurs — panier, envoi, statuts', () => {
     return res.body as { accessToken: string; user: { restaurantId: string } };
   }
 
-  async function setupSupplierAndProduct(token: string, name: string, contactEmail?: string) {
+  async function setupSupplierAndProduct(
+    token: string,
+    name: string,
+    contactEmail?: string,
+    extra?: { preferredChannel?: string; contactPhone?: string },
+  ) {
     const supplier = await request(app)
       .post('/api/suppliers')
       .set('Authorization', `Bearer ${token}`)
-      .send({ name, category: 'Test', preferredChannel: 'EMAIL', contactEmail });
+      .send({
+        name,
+        category: 'Test',
+        preferredChannel: extra?.preferredChannel ?? 'EMAIL',
+        contactEmail,
+        contactPhone: extra?.contactPhone,
+      });
 
     const product = await request(app)
       .post('/api/products')
@@ -40,6 +51,14 @@ describe('Commandes fournisseurs — panier, envoi, statuts', () => {
       .send({ supplierId: supplier.body.supplier.id, name: `Produit ${name}`, unit: 'KG', currentPriceHT: 10 });
 
     return { supplierId: supplier.body.supplier.id as string, productId: product.body.product.id as string };
+  }
+
+  async function createDraftOrder(token: string, productId: string, quantity: number) {
+    const cartRes = await request(app)
+      .post('/api/orders/from-cart')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ items: [{ productId, quantity }] });
+    return cartRes.body.orders[0].id as string;
   }
 
   afterAll(async () => {
@@ -131,6 +150,79 @@ describe('Commandes fournisseurs — panier, envoi, statuts', () => {
 
     expect(sendRes.status).toBe(400);
     expect(sendRes.body.error).toBe('MISSING_CONTACT_EMAIL');
+  });
+
+  // L'environnement de test n'a pas de vraies clés WhatsApp Business /
+  // Twilio (même principe que Resend ci-dessus) : ces tests vérifient le
+  // bon canal est tenté et que l'échec reste un repli propre (502,
+  // commande toujours en DRAFT, message généré disponible).
+  it("tente l'envoi WhatsApp quand c'est le canal préféré du fournisseur, et échoue proprement faute de vraie clé", async () => {
+    const restaurant = await bootstrapRestaurant('I');
+    const supplier = await setupSupplierAndProduct(restaurant.accessToken, 'WhatsApp', undefined, {
+      preferredChannel: 'WHATSAPP',
+      contactPhone: '+33612345678',
+    });
+    const orderId = await createDraftOrder(restaurant.accessToken, supplier.productId, 4);
+
+    const sendRes = await request(app)
+      .post(`/api/orders/${orderId}/send`)
+      .set('Authorization', `Bearer ${restaurant.accessToken}`);
+
+    expect(sendRes.status).toBe(502);
+    expect(sendRes.body.error).toBe('WHATSAPP_SEND_FAILED');
+    expect(sendRes.body.generatedMessage.text).toContain('Produit WhatsApp');
+
+    const order = await prisma.order.findUniqueOrThrow({ where: { id: orderId } });
+    expect(order.status).toBe('DRAFT');
+  });
+
+  it("refuse l'envoi WhatsApp si le fournisseur n'a pas de numéro de téléphone", async () => {
+    const restaurant = await bootstrapRestaurant('J');
+    const supplier = await setupSupplierAndProduct(restaurant.accessToken, 'WhatsAppSansTel', undefined, {
+      preferredChannel: 'WHATSAPP',
+    });
+    const orderId = await createDraftOrder(restaurant.accessToken, supplier.productId, 1);
+
+    const sendRes = await request(app)
+      .post(`/api/orders/${orderId}/send`)
+      .set('Authorization', `Bearer ${restaurant.accessToken}`);
+
+    expect(sendRes.status).toBe(400);
+    expect(sendRes.body.error).toBe('MISSING_CONTACT_PHONE');
+  });
+
+  it("tente l'envoi SMS quand c'est le canal préféré du fournisseur, et échoue proprement faute de vraie clé Twilio", async () => {
+    const restaurant = await bootstrapRestaurant('K');
+    const supplier = await setupSupplierAndProduct(restaurant.accessToken, 'Sms', undefined, {
+      preferredChannel: 'SMS',
+      contactPhone: '+33698765432',
+    });
+    const orderId = await createDraftOrder(restaurant.accessToken, supplier.productId, 2);
+
+    const sendRes = await request(app)
+      .post(`/api/orders/${orderId}/send`)
+      .set('Authorization', `Bearer ${restaurant.accessToken}`);
+
+    expect(sendRes.status).toBe(502);
+    expect(sendRes.body.error).toBe('SMS_SEND_FAILED');
+
+    const order = await prisma.order.findUniqueOrThrow({ where: { id: orderId } });
+    expect(order.status).toBe('DRAFT');
+  });
+
+  it("refuse l'envoi SMS si le fournisseur n'a pas de numéro de téléphone", async () => {
+    const restaurant = await bootstrapRestaurant('L');
+    const supplier = await setupSupplierAndProduct(restaurant.accessToken, 'SmsSansTel', undefined, {
+      preferredChannel: 'SMS',
+    });
+    const orderId = await createDraftOrder(restaurant.accessToken, supplier.productId, 1);
+
+    const sendRes = await request(app)
+      .post(`/api/orders/${orderId}/send`)
+      .set('Authorization', `Bearer ${restaurant.accessToken}`);
+
+    expect(sendRes.status).toBe(400);
+    expect(sendRes.body.error).toBe('MISSING_CONTACT_PHONE');
   });
 
   it('respecte les transitions de statut autorisées (DRAFT → SENT → CONFIRMED → DELIVERED)', async () => {

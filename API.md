@@ -12,7 +12,7 @@ Rôles : **GERANT** (accès total), **CUISINE** (fiches techniques, gaspillage, 
 
 | Méthode | Route | Rôle | Description |
 |---|---|---|---|
-| POST | `/login` | public | `{ email, password }` → `{ accessToken, refreshToken, user }` |
+| POST | `/login` | public | `{ email, password, restaurantId? }` → `{ accessToken, refreshToken, user }` ; ou, si l'email est lié à plusieurs restaurants et qu'aucun `restaurantId` n'est fourni, `{ requiresRestaurantSelection: true, restaurants: [{ restaurantId, restaurantName, role }] }` (renvoyer la requête avec le `restaurantId` choisi) |
 | POST | `/refresh` | public | `{ refreshToken }` → nouveaux tokens (rotation : l'ancien refresh token est révoqué) |
 | POST | `/logout` | public | `{ refreshToken }` → révoque le refresh token, `204` |
 
@@ -27,6 +27,17 @@ Rôles : **GERANT** (accès total), **CUISINE** (fiches techniques, gaspillage, 
 | PATCH | `/me/thresholds` | GERANT | `{ marginGreenThreshold, marginOrangeThreshold }` — seuil vert doit être > seuil orange |
 | GET | `/me/export` | GERANT | Export RGPD complet en JSON (restaurant, utilisateurs sans mot de passe, fournisseurs, produits, plats+recettes, factures, commandes, gaspillage, alertes) |
 | DELETE | `/me` | GERANT | Suppression RGPD irréversible. `{ confirmRestaurantName }` doit correspondre exactement au nom du restaurant. `204` |
+
+### Multi-restaurant
+
+Un même compte (même email) peut être lié à plusieurs restaurants (une ligne `User` par restaurant, mot de passe partagé). `POST /api/auth/login` renvoie `{ requiresRestaurantSelection: true, restaurants: [...] }` au lieu des tokens quand l'email correspond à plusieurs restaurants et qu'aucun `restaurantId` n'est fourni dans le corps de la requête.
+
+| Méthode | Route | Rôle | Description |
+|---|---|---|---|
+| POST | `/add` | GERANT | Crée un nouveau restaurant lié au compte courant (même email/mot de passe). `{ restaurantName, currency?, timezone? }` → nouveaux tokens pour ce restaurant |
+| GET | `/mine` | tous | Liste des restaurants liés au compte courant : `{ restaurants: [{ id, name, role, isCurrent }] }` |
+| POST | `/switch` | tous | Change de contexte restaurant. `{ restaurantId }` → nouveaux tokens, `403` si aucun compte lié à ce restaurant |
+| GET | `/consolidated` | GERANT | Vue agrégée de tous les restaurants liés : totaux (`restaurantCount`, `averageMarginRatio`, `totalPotentialSavings`, `totalWasteThisMonth`, `totalRedAlerts`) + détail par restaurant |
 
 ## Équipe — `/api/users`
 
@@ -94,7 +105,7 @@ Réservé à GERANT et CUISINE.
 | POST | `/from-cart` | `{ items: [{ productId, quantity }] }` → une commande brouillon par fournisseur représenté |
 | GET | `/:id` | Détail |
 | PATCH | `/:id/lines` | Modifie les lignes (uniquement si `DRAFT`) |
-| POST | `/:id/send` | Génère le message et tente l'envoi email (Resend). Échec → commande reste `DRAFT`, `generatedMessage` renvoyé pour envoi manuel |
+| POST | `/:id/send` | Génère le message et tente l'envoi automatique selon le canal préféré du fournisseur (`Supplier.preferredChannel`) : email (Resend), WhatsApp Business (API Cloud Meta) ou SMS (Twilio). PHONE/WEB_PORTAL/FAX basculent sur l'email si une adresse est renseignée. Échec → commande reste `DRAFT`, `generatedMessage` renvoyé pour envoi manuel. Codes d'erreur : `MISSING_CONTACT_EMAIL`/`MISSING_CONTACT_PHONE` (`400`, coordonnée manquante) ; `EMAIL_SEND_FAILED`/`WHATSAPP_SEND_FAILED`/`SMS_SEND_FAILED` (`502`, échec de l'appel API) |
 | PATCH | `/:id/status` | `{ status }` — transitions autorisées : DRAFT→CANCELLED, SENT→{CONFIRMED, DELIVERED, CANCELLED}, CONFIRMED→DELIVERED |
 
 ## Gaspillage — `/api/waste`

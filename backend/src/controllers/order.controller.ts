@@ -3,12 +3,92 @@ import { prisma } from '../lib/prisma';
 import { logger } from '../lib/logger';
 import { buildOrderMessage } from '../lib/orderMessage';
 import { sendEmail, EmailError } from '../lib/email';
+import { sendWhatsAppMessage, WhatsAppError } from '../lib/whatsapp';
+import { sendSms, SmsError } from '../lib/sms';
 import { createOrdersFromCartSchema, updateOrderLinesSchema, updateOrderStatusSchema } from '../schemas/order.schemas';
 
 const ORDER_INCLUDE = {
   lineItems: { include: { product: { select: { id: true, name: true, unit: true } } } },
-  supplier: { select: { id: true, name: true, contactEmail: true, preferredChannel: true } },
+  supplier: {
+    select: { id: true, name: true, contactEmail: true, contactPhone: true, preferredChannel: true },
+  },
 } as const;
+
+// Décide quel canal automatique tenter selon la préférence du
+// fournisseur (Supplier.preferredChannel). PHONE, WEB_PORTAL et FAX
+// n'ont pas d'envoi automatisé possible ici — même repli qu'avant pour
+// eux (message généré à copier manuellement).
+type SendChannelResult =
+  | { ok: true }
+  // Coordonnée manquante (email/téléphone) : problème de configuration
+  // du fournisseur, jamais tenté d'appel réseau → 400.
+  | { ok: false; status: 400; error: string; message: string }
+  // Échec réel de l'envoi (clé absente, panne réseau, refus de l'API)
+  // → 502, la commande reste exploitable via le repli manuel.
+  | { ok: false; status: 502; error: string; message: string };
+
+async function sendViaPreferredChannel(
+  channel: string,
+  contactEmail: string | null,
+  contactPhone: string | null,
+  subject: string,
+  text: string,
+): Promise<SendChannelResult> {
+  if (channel === 'WHATSAPP') {
+    if (!contactPhone) {
+      return {
+        ok: false,
+        status: 400,
+        error: 'MISSING_CONTACT_PHONE',
+        message: "Ce fournisseur n'a pas de numéro de téléphone renseigné.",
+      };
+    }
+    try {
+      await sendWhatsAppMessage(contactPhone, text);
+      return { ok: true };
+    } catch (err) {
+      const message = err instanceof WhatsAppError ? err.message : "Échec inattendu de l'envoi WhatsApp.";
+      return { ok: false, status: 502, error: 'WHATSAPP_SEND_FAILED', message };
+    }
+  }
+
+  if (channel === 'SMS') {
+    if (!contactPhone) {
+      return {
+        ok: false,
+        status: 400,
+        error: 'MISSING_CONTACT_PHONE',
+        message: "Ce fournisseur n'a pas de numéro de téléphone renseigné.",
+      };
+    }
+    try {
+      await sendSms(contactPhone, text);
+      return { ok: true };
+    } catch (err) {
+      const message = err instanceof SmsError ? err.message : "Échec inattendu de l'envoi SMS.";
+      return { ok: false, status: 502, error: 'SMS_SEND_FAILED', message };
+    }
+  }
+
+  // EMAIL (par défaut) — aussi le repli pour PHONE/WEB_PORTAL/FAX, qui
+  // n'ont pas d'API d'envoi automatisé : si le fournisseur a quand même
+  // une adresse email renseignée, on l'utilise plutôt que d'abandonner.
+  if (!contactEmail) {
+    return {
+      ok: false,
+      status: 400,
+      error: 'MISSING_CONTACT_EMAIL',
+      message: "Ce fournisseur n'a pas d'adresse email renseignée.",
+    };
+  }
+  try {
+    await sendEmail(contactEmail, subject, text);
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof EmailError ? err.message : "Échec inattendu de l'envoi.";
+    return { ok: false, status: 502, error: 'EMAIL_SEND_FAILED', message };
+  }
+}
 
 // États suivants autorisés depuis chaque statut. SENT n'apparaît jamais
 // ici : on n'y arrive que via /send, jamais via ce endpoint générique,
@@ -139,11 +219,12 @@ export async function updateOrderLines(req: Request, res: Response) {
   res.json({ order: updated });
 }
 
-// Génère le message de commande et tente l'envoi réel par email
-// (Resend). En cas d'échec (clé absente/invalide, panne réseau, refus
-// de l'API), la commande reste en DRAFT et le message généré est quand
-// même renvoyé : le gérant peut le copier et l'envoyer manuellement par
-// un autre canal (téléphone, WhatsApp — voir Supplier.preferredChannel).
+// Génère le message de commande et tente l'envoi réel par le canal
+// préféré du fournisseur (email/Resend, WhatsApp Business, ou SMS/Twilio
+// — Supplier.preferredChannel). En cas d'échec (clé absente/invalide,
+// coordonnée manquante, panne réseau, refus de l'API), la commande
+// reste en DRAFT et le message généré est quand même renvoyé : le
+// gérant peut le copier et l'envoyer manuellement.
 export async function sendOrder(req: Request, res: Response) {
   const order = await prisma.order.findFirst({
     where: { id: req.params.id, restaurantId: req.user!.restaurantId },
@@ -166,20 +247,20 @@ export async function sendOrder(req: Request, res: Response) {
     order.lineItems.map((l) => ({ productName: l.product.name, quantity: Number(l.quantity), unit: l.product.unit })),
   );
 
-  if (!order.supplier.contactEmail) {
-    return res.status(400).json({
-      error: 'MISSING_CONTACT_EMAIL',
-      message: "Ce fournisseur n'a pas d'adresse email renseignée.",
-      generatedMessage: message,
-    });
-  }
+  const result = await sendViaPreferredChannel(
+    order.supplier.preferredChannel,
+    order.supplier.contactEmail,
+    order.supplier.contactPhone,
+    message.subject,
+    message.text,
+  );
 
-  try {
-    await sendEmail(order.supplier.contactEmail, message.subject, message.text);
-  } catch (err) {
-    const errorMessage = err instanceof EmailError ? err.message : "Échec inattendu de l'envoi.";
-    logger.warn({ err, orderId: order.id }, 'Envoi de commande par email échoué — message disponible pour envoi manuel');
-    return res.status(502).json({ error: 'EMAIL_SEND_FAILED', message: errorMessage, generatedMessage: message });
+  if (!result.ok) {
+    logger.warn(
+      { orderId: order.id, channel: order.supplier.preferredChannel, error: result.error },
+      'Envoi de commande échoué — message disponible pour envoi manuel',
+    );
+    return res.status(result.status).json({ error: result.error, message: result.message, generatedMessage: message });
   }
 
   const updated = await prisma.order.update({
