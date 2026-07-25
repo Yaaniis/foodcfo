@@ -17,6 +17,7 @@ import OrderDetailPage from './pages/OrderDetailPage';
 import WastePage from './pages/WastePage';
 import ReportsPage from './pages/ReportsPage';
 import ConsolidatedPage from './pages/ConsolidatedPage';
+import BillingPage from './pages/BillingPage';
 import MentionsLegalesPage from './pages/legal/MentionsLegalesPage';
 import CGUPage from './pages/legal/CGUPage';
 import ConfidentialitePage from './pages/legal/ConfidentialitePage';
@@ -41,6 +42,7 @@ function App() {
               <Route path="/team" element={<TeamPage />} />
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/consolidated" element={<ConsolidatedPage />} />
+              <Route path="/billing" element={<BillingPage />} />
             </Route>
 
             <Route element={<RequireRole roles={['GERANT', 'CUISINE']} />}>

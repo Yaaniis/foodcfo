@@ -128,6 +128,17 @@ Réservé à GERANT.
 | GET | `/api/reports/monthly/preview` | Aperçu du rapport mensuel (données + email généré) |
 | POST | `/api/reports/monthly/send` | Envoie le rapport à tous les comptes Gérant actifs. Envoi automatique aussi programmé le 1er de chaque mois (`node-cron`) |
 
+## Facturation — `/api/billing`
+
+Abonnement payant (Stripe). Sans `STRIPE_SECRET_KEY`/`STRIPE_PRICE_ID` valides, `/checkout` et `/portal` renvoient `503 BILLING_NOT_CONFIGURED` — le reste de l'application fonctionne normalement.
+
+| Méthode | Route | Rôle | Description |
+|---|---|---|---|
+| GET | `/status` | tous | `{ billingConfigured, subscriptionStatus, subscriptionCurrentPeriodEnd }` |
+| POST | `/checkout` | GERANT | Crée une session Stripe Checkout (abonnement, `STRIPE_PRICE_ID`) → `{ url }` à rediriger |
+| POST | `/portal` | GERANT | Crée une session du portail Stripe (gestion libre-service : moyen de paiement, résiliation, factures) → `{ url }`. `400 NO_SUBSCRIPTION` si aucun abonnement n'a jamais été initié |
+| POST | `/api/webhooks/stripe` | public (signature vérifiée) | Synchronise `Restaurant.subscriptionStatus` depuis les évènements Stripe (`checkout.session.completed`, `customer.subscription.updated`/`.deleted`). Jamais appelé directement par le frontend |
+
 ---
 
 ## Codes d'erreur courants

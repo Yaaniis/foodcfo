@@ -39,6 +39,15 @@ const envSchema = z.object({
   TWILIO_ACCOUNT_SID: z.string().optional(),
   TWILIO_AUTH_TOKEN: z.string().optional(),
   TWILIO_FROM_NUMBER: z.string().optional(),
+  // Optionnelles : abonnement payant (Stripe). Sans clé valide, la
+  // facturation est simplement indisponible (endpoints /api/billing/*
+  // renvoient une erreur claire) — le reste de l'application continue de
+  // fonctionner normalement, même principe que les autres intégrations.
+  // STRIPE_PRICE_ID référence un Price déjà créé dans le tableau de bord
+  // Stripe : le montant facturé n'est jamais codé en dur ici.
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_PRICE_ID: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

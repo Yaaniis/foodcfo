@@ -122,6 +122,21 @@ enum MarginAlertStatus {
   DISMISSED
 }
 
+// Reflète directement les statuts d'abonnement Stripe (Subscription.status)
+// plutôt qu'un statut simplifié maison — évite toute logique de mapping
+// à maintenir en double, la synchronisation par webhook peut recopier
+// la valeur telle quelle.
+enum SubscriptionStatus {
+  INCOMPLETE
+  INCOMPLETE_EXPIRED
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  UNPAID
+  PAUSED
+}
+
 // ============================================================================
 // RESTAURANT — racine du multi-tenant
 // ============================================================================
@@ -143,6 +158,16 @@ model Restaurant {
   // Seuil (en %) au-delà duquel une hausse de prix fournisseur entre deux
   // factures déclenche une alerte automatique. Configurable, pas figé.
   priceIncreaseAlertThreshold Decimal @default(10) @db.Decimal(5, 2)
+
+  // Abonnement (Stripe) — un abonnement par restaurant, cohérent avec le
+  // modèle multi-restaurant existant (Restaurant, pas User, est déjà
+  // l'unité de facturation naturelle : un Gérant avec plusieurs
+  // restaurants peut vouloir n'en payer qu'un seul). Tous nullable : un
+  // restaurant fraîchement créé n'a encore initié aucun paiement.
+  stripeCustomerId             String?             @unique
+  stripeSubscriptionId         String?             @unique
+  subscriptionStatus           SubscriptionStatus?
+  subscriptionCurrentPeriodEnd DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -28,6 +28,8 @@ import { orderRouter } from './routes/order.routes';
 import { wasteRouter } from './routes/waste.routes';
 import { exportRouter } from './routes/export.routes';
 import { reportRouter } from './routes/report.routes';
+import { billingRouter } from './routes/billing.routes';
+import { handleStripeWebhook } from './controllers/billing.controller';
 import { requireAuth } from './middleware/auth';
 import { errorHandler } from './middleware/errorHandler';
 import { asyncHandler } from './utils/asyncHandler';
@@ -56,6 +58,13 @@ app.use(
     origin: allowedOrigins,
   }),
 );
+
+// Doit être monté AVANT express.json() : Stripe exige le corps brut
+// (octets exacts reçus) pour vérifier la signature du webhook — un corps
+// déjà parsé en JSON puis resérialisé ne correspondrait plus à la
+// signature calculée par Stripe, même si le contenu est identique.
+app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), asyncHandler(handleStripeWebhook));
+
 app.use(express.json());
 
 // Health check enrichi : vérifie aussi que la base de données répond,
@@ -83,6 +92,7 @@ app.use('/api/orders', orderRouter);
 app.use('/api/waste', wasteRouter);
 app.use('/api/exports', exportRouter);
 app.use('/api/reports', reportRouter);
+app.use('/api/billing', billingRouter);
 
 // Renvoie le profil complet de l'utilisateur connecté — interroge la
 // base plutôt que de se contenter du contenu du token, pour que le
