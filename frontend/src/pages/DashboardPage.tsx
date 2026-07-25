@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ApiRequestError } from '../lib/apiClient';
 import { MARGIN_STATUS_STYLES, MARGIN_STATUS_LABELS, type MarginPreview } from '../lib/margin';
+import { useOnlineStatus } from '../lib/useOnlineStatus';
 
 const ROLE_LABELS = {
   GERANT: 'Gérant',
@@ -39,6 +40,7 @@ function formatEuros(value: number): string {
 
 export default function DashboardPage() {
   const { user, logout, authFetch } = useAuth();
+  const isOnline = useOnlineStatus();
 
   const [data, setData] = useState<DashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -112,6 +114,12 @@ export default function DashboardPage() {
             Déconnexion
           </button>
         </div>
+
+        {!isOnline && (
+          <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
+            Mode hors-ligne — dernières données connues, pas nécessairement à jour.
+          </p>
+        )}
 
         {isLoading && <p className="text-slate-500">Chargement…</p>}
         {error && <p className="text-red-600">{error}</p>}

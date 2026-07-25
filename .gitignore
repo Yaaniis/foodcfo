@@ -16,6 +16,7 @@ backend/prisma/migrations/dev.db
 
 # Frontend
 frontend/dist/
+frontend/dev-dist/
 .vite/
 
 # Éditeurs / OS

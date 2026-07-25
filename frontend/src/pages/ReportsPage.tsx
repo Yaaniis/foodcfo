@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ApiRequestError } from '../lib/apiClient';
 
@@ -24,7 +24,8 @@ interface ReportEmail {
 }
 
 export default function ReportsPage() {
-  const { authFetch, accessToken } = useAuth();
+  const { authFetch, accessToken, logout } = useAuth();
+  const navigate = useNavigate();
 
   const [data, setData] = useState<ReportData | null>(null);
   const [email, setEmail] = useState<ReportEmail | null>(null);
@@ -33,6 +34,10 @@ export default function ReportsPage() {
   const [isSending, setIsSending] = useState(false);
   const [sendResult, setSendResult] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportingData, setIsExportingData] = useState(false);
+  const [confirmName, setConfirmName] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   async function load() {
     setIsLoading(true);
@@ -90,6 +95,47 @@ export default function ReportsPage() {
       setError("Impossible de télécharger l'export comptable.");
     } finally {
       setIsExporting(false);
+    }
+  }
+
+  async function handleExportAllData() {
+    setError(null);
+    setIsExportingData(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/restaurants/me/export`, {
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      });
+      if (!res.ok) {
+        throw new Error("Impossible de générer l'export.");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `foodcfo-export-complet.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setError('Impossible de télécharger vos données.');
+    } finally {
+      setIsExportingData(false);
+    }
+  }
+
+  async function handleDeleteRestaurant() {
+    setDeleteError(null);
+    setIsDeleting(true);
+    try {
+      await authFetch('/api/restaurants/me', {
+        method: 'DELETE',
+        body: JSON.stringify({ confirmRestaurantName: confirmName }),
+      });
+      await logout();
+      navigate('/login');
+    } catch (err) {
+      setDeleteError(err instanceof ApiRequestError ? err.message : 'Impossible de supprimer le restaurant.');
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -173,6 +219,48 @@ export default function ReportsPage() {
             className="w-full min-h-[44px] rounded-lg border border-slate-300 text-slate-700 font-medium disabled:opacity-50"
           >
             {isExporting ? 'Génération…' : 'Télécharger le CSV des factures'}
+          </button>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 mt-4">
+          <p className="text-sm font-medium text-slate-700 mb-3">Confidentialité et données</p>
+          <p className="text-sm text-slate-500 mb-4">
+            Conformément au RGPD, tu peux exporter l'intégralité des données de ton restaurant, ou demander leur
+            suppression complète.
+          </p>
+          <button
+            onClick={handleExportAllData}
+            disabled={isExportingData}
+            className="w-full min-h-[44px] rounded-lg border border-slate-300 text-slate-700 font-medium disabled:opacity-50"
+          >
+            {isExportingData ? 'Génération…' : 'Exporter toutes mes données (JSON)'}
+          </button>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-red-200 p-6 mt-4">
+          <p className="text-sm font-medium text-red-700 mb-3">Zone de suppression</p>
+          <p className="text-sm text-slate-500 mb-4">
+            Supprime définitivement le restaurant et toutes ses données (fournisseurs, produits, plats, factures,
+            commandes, gaspillage, comptes de l'équipe). <strong>Action irréversible.</strong> Pour confirmer, retape
+            le nom exact du restaurant{data ? ` (« ${data.restaurantName} »)` : ''} ci-dessous.
+          </p>
+          <input
+            value={confirmName}
+            onChange={(e) => setConfirmName(e.target.value)}
+            placeholder="Nom exact du restaurant"
+            className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3 mb-3"
+          />
+          {deleteError && (
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
+              {deleteError}
+            </p>
+          )}
+          <button
+            onClick={handleDeleteRestaurant}
+            disabled={isDeleting || !data || confirmName !== data.restaurantName}
+            className="w-full min-h-[44px] rounded-lg bg-red-600 text-white font-medium disabled:opacity-40"
+          >
+            {isDeleting ? 'Suppression…' : 'Supprimer définitivement le restaurant'}
           </button>
         </div>
       </div>
