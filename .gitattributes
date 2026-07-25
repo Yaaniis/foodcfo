@@ -1,0 +1,5 @@
+# Sans ça, un checkout Windows (autocrlf) convertirait ces fichiers en
+# CRLF, ce qui casse silencieusement un script shell exécuté dans un
+# conteneur Linux (Docker COPY reprend les octets tels quels du disque).
+*.sh text eol=lf
+Dockerfile text eol=lf
