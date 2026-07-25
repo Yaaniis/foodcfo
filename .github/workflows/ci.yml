@@ -1,0 +1,63 @@
+name: CI
+
+# Sur chaque push/PR vers main : mêmes vérifications que celles faites à
+# la main avant chaque commit pendant le développement (tests, type-check,
+# build) — pour les attraper automatiquement plutôt que de compter sur
+# le fait qu'elles aient été refaites à la main à chaque fois.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    # Nos tests d'intégration tapent une vraie base PostgreSQL (voir
+    # backend/vitest.config.ts) plutôt qu'une base mockée — même image
+    # que docker-compose.yml en local, pour un comportement identique.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: foodcfo
+          POSTGRES_PASSWORD: foodcfo_dev_password
+          POSTGRES_DB: foodcfo
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U foodcfo"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://foodcfo:foodcfo_dev_password@localhost:5432/foodcfo?schema=public
+      JWT_ACCESS_SECRET: ci-test-access-secret-not-used-in-production
+      JWT_REFRESH_SECRET: ci-test-refresh-secret-not-used-in-production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx prisma generate --schema=backend/prisma/schema.prisma
+      - run: npx prisma migrate deploy --schema=backend/prisma/schema.prisma
+      # roles.integration.test.ts s'appuie sur les 3 comptes créés par le
+      # seed (un par rôle) plutôt que d'en créer les siens — sur une base
+      # CI neuve, jamais seedée, ces connexions échoueraient sinon.
+      - run: npm run prisma:seed -w backend
+
+      - run: npx tsc --noEmit
+        working-directory: backend
+      - run: npm run build -w backend
+
+      - run: npm test -w backend
+
+      - run: npm run build -w frontend
