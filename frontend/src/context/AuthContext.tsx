@@ -76,6 +76,10 @@ interface AuthContextValue {
   // Pour les futurs appels API authentifiés (Phase 1.5+) : injecte le
   // token courant et rafraîchit automatiquement une fois en cas de 401.
   authFetch: <T>(path: string, options?: RequestInit) => Promise<T>;
+  // Exposé pour les rares appels qui ne passent pas par authFetch (ex:
+  // téléchargement d'un export CSV, Phase 6 — pas de JSON à parser,
+  // donc pas via apiRequest<T>).
+  accessToken: string | null;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -164,7 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, createRestaurant, logout, authFetch }}>
+    <AuthContext.Provider value={{ user, isLoading, login, createRestaurant, logout, authFetch, accessToken }}>
       {children}
     </AuthContext.Provider>
   );

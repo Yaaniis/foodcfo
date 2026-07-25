@@ -7,10 +7,13 @@ import { app } from './app';
 import { env } from './config/env';
 import { logger } from './lib/logger';
 import { prisma } from './lib/prisma';
+import { scheduleMonthlyReports } from './lib/monthlyReportScheduler';
 
 app.listen(env.PORT, () => {
   logger.info(`🚀 FoodCFO backend démarré sur http://localhost:${env.PORT}`);
 });
+
+scheduleMonthlyReports();
 
 // Arrêt propre : ferme la connexion Prisma si le process est interrompu
 // (Ctrl+C), pour ne pas laisser de connexions ouvertes à la base.

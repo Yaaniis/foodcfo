@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { logger } from '../lib/logger';
 import { buildOrderMessage } from '../lib/orderMessage';
-import { sendOrderEmail, OrderEmailError } from '../lib/orderEmail';
+import { sendEmail, EmailError } from '../lib/email';
 import { createOrdersFromCartSchema, updateOrderLinesSchema, updateOrderStatusSchema } from '../schemas/order.schemas';
 
 const ORDER_INCLUDE = {
@@ -175,9 +175,9 @@ export async function sendOrder(req: Request, res: Response) {
   }
 
   try {
-    await sendOrderEmail(order.supplier.contactEmail, message.subject, message.text);
+    await sendEmail(order.supplier.contactEmail, message.subject, message.text);
   } catch (err) {
-    const errorMessage = err instanceof OrderEmailError ? err.message : "Échec inattendu de l'envoi.";
+    const errorMessage = err instanceof EmailError ? err.message : "Échec inattendu de l'envoi.";
     logger.warn({ err, orderId: order.id }, 'Envoi de commande par email échoué — message disponible pour envoi manuel');
     return res.status(502).json({ error: 'EMAIL_SEND_FAILED', message: errorMessage, generatedMessage: message });
   }

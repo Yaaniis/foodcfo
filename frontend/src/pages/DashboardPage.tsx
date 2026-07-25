@@ -265,8 +265,13 @@ export default function DashboardPage() {
             </Link>
           )}
           {user?.role === 'GERANT' && (
-            <Link to="/team" className="inline-block text-slate-900 font-medium underline">
+            <Link to="/team" className="inline-block mr-6 text-slate-900 font-medium underline">
               Gérer l'équipe →
+            </Link>
+          )}
+          {user?.role === 'GERANT' && (
+            <Link to="/reports" className="inline-block text-slate-900 font-medium underline">
+              Rapports et exports →
             </Link>
           )}
         </div>

@@ -290,7 +290,20 @@ export async function validateInvoice(req: Request, res: Response) {
       }
     }
 
-    await tx.invoice.update({ where: { id: invoice.id }, data: { status: 'VALIDATED' } });
+    // Une facture validée sans date ni montant n'a pas de sens pour la
+    // comptabilité (Phase 6 : export CSV, rapport mensuel, tous deux
+    // filtrés/agrégés par date) — on comble ces deux champs à la
+    // validation s'ils n'ont pas été renseignés (extraction IA ratée,
+    // saisie manuelle incomplète), plutôt que de les laisser vides.
+    const totalPriceHT = invoice.lineItems.reduce((sum, l) => sum + Number(l.totalPriceHT), 0);
+    await tx.invoice.update({
+      where: { id: invoice.id },
+      data: {
+        status: 'VALIDATED',
+        invoiceDate: invoice.invoiceDate ?? new Date(),
+        totalAmount: invoice.totalAmount ?? totalPriceHT,
+      },
+    });
   });
 
   const updated = await prisma.invoice.findUniqueOrThrow({

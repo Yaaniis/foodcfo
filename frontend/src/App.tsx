@@ -15,6 +15,7 @@ import InvoiceReviewPage from './pages/InvoiceReviewPage';
 import OrdersPage from './pages/OrdersPage';
 import OrderDetailPage from './pages/OrderDetailPage';
 import WastePage from './pages/WastePage';
+import ReportsPage from './pages/ReportsPage';
 
 // Phase 1.4 : routing complet + authentification côté client.
 // Phase 1.5 : carte, fiches techniques, fournisseurs/produits.
@@ -31,6 +32,7 @@ function App() {
 
             <Route element={<GerantRoute />}>
               <Route path="/team" element={<TeamPage />} />
+              <Route path="/reports" element={<ReportsPage />} />
             </Route>
 
             <Route element={<RequireRole roles={['GERANT', 'CUISINE']} />}>
