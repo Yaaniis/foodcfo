@@ -25,6 +25,8 @@ import { gatherDashboardData } from './dashboard.controller';
 
 export async function bootstrap(req: Request, res: Response) {
   const { restaurantName, currency, timezone, gerant } = bootstrapRestaurantSchema.parse(req.body);
+  // acceptTerms est déjà validé par le schéma (littéral `true` requis) —
+  // on ne le déstructure pas, juste besoin de l'horodatage ici.
 
   // À ce stade (mono-restaurant visible), on vérifie l'unicité de l'email
   // tous restaurants confondus par simplicité — cohérent avec la
@@ -48,6 +50,7 @@ export async function bootstrap(req: Request, res: Response) {
           role: 'GERANT',
           firstName: gerant.firstName,
           lastName: gerant.lastName,
+          termsAcceptedAt: new Date(),
         },
       },
     },

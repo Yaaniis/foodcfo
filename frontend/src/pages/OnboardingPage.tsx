@@ -13,15 +13,17 @@ export default function OnboardingPage() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!acceptTerms) return;
     setError(null);
     setIsSubmitting(true);
     try {
-      await createRestaurant({ restaurantName, gerant: { firstName, lastName, email, password } });
+      await createRestaurant({ restaurantName, gerant: { firstName, lastName, email, password }, acceptTerms: true });
       navigate('/', { replace: true });
     } catch (err) {
       setError(err instanceof ApiRequestError ? err.message : 'Impossible de créer le restaurant pour le moment.');
@@ -112,13 +114,33 @@ export default function OnboardingPage() {
             <p className="text-xs text-slate-400 mt-1">8 caractères minimum</p>
           </div>
 
+          <label className="flex items-start gap-2 min-h-[44px]">
+            <input
+              type="checkbox"
+              checked={acceptTerms}
+              onChange={(e) => setAcceptTerms(e.target.checked)}
+              className="mt-1 h-4 w-4 shrink-0"
+            />
+            <span className="text-sm text-slate-600">
+              J'accepte les{' '}
+              <Link to="/cgu" target="_blank" className="underline text-slate-900">
+                CGU
+              </Link>{' '}
+              et la{' '}
+              <Link to="/confidentialite" target="_blank" className="underline text-slate-900">
+                politique de confidentialité
+              </Link>
+              .
+            </span>
+          </label>
+
           {error && (
             <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
           )}
 
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || !acceptTerms}
             className="w-full min-h-[44px] rounded-lg bg-slate-900 text-white font-medium disabled:opacity-50"
           >
             {isSubmitting ? 'Création…' : 'Créer mon restaurant'}

@@ -57,6 +57,7 @@ export interface BootstrapRestaurantPayload {
     firstName: string;
     lastName: string;
   };
+  acceptTerms: true;
 }
 
 export interface LinkedRestaurant {

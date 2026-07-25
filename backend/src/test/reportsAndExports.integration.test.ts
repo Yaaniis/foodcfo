@@ -23,6 +23,7 @@ describe('Rapports mensuels et exports comptables', () => {
           firstName: 'Test',
           lastName: label,
         },
+        acceptTerms: true,
       });
     createdRestaurantIds.push(res.body.user.restaurantId as string);
     return res.body as { accessToken: string; user: { restaurantId: string } };

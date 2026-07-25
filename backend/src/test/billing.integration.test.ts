@@ -25,6 +25,7 @@ describe('Facturation — statut et sessions Stripe', () => {
           firstName: 'Test',
           lastName: label,
         },
+        acceptTerms: true,
       });
     createdRestaurantIds.push(res.body.user.restaurantId as string);
 

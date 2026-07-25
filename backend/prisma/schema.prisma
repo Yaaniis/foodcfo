@@ -200,6 +200,12 @@ model User {
   lastName     String
   isActive     Boolean  @default(true)
 
+  // Renseigné uniquement pour le Gérant fondateur, au moment du
+  // bootstrap (acceptation des CGU obligatoire pour créer un compte) —
+  // `null` pour les membres d'équipe ajoutés ensuite par leur Gérant,
+  // qui n'ont pas eux-mêmes traversé cet écran.
+  termsAcceptedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

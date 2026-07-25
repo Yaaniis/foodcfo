@@ -20,6 +20,7 @@ describe('Mot de passe oublié / réinitialisation', () => {
       .send({
         restaurantName: `Restaurant reset ${label}`,
         gerant: { email, password: 'MotDePasseInitial123!', firstName: 'Test', lastName: label },
+        acceptTerms: true,
       });
     createdRestaurantIds.push(res.body.user.restaurantId as string);
     return res.body as { accessToken: string; refreshToken: string; user: { restaurantId: string } };

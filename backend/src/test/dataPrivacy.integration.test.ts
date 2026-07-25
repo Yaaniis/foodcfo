@@ -25,6 +25,7 @@ describe('RGPD — export et suppression des données sur demande', () => {
           firstName: 'Test',
           lastName: label,
         },
+        acceptTerms: true,
       });
     createdRestaurantIds.push(res.body.user.restaurantId as string);
     return res.body as { accessToken: string; user: { restaurantId: string } };

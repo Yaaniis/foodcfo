@@ -10,6 +10,10 @@ export const bootstrapRestaurantSchema = z.object({
     firstName: z.string().min(1, 'Prénom requis.'),
     lastName: z.string().min(1, 'Nom requis.'),
   }),
+  // Case à cocher obligatoire côté frontend (CGU/confidentialité) — un
+  // littéral `true` plutôt qu'un booléen simple pour que "false" ou
+  // absent échouent tous deux la validation, pas seulement "absent".
+  acceptTerms: z.literal(true, { errorMap: () => ({ message: 'Vous devez accepter les CGU pour créer un compte.' }) }),
 });
 
 export type BootstrapRestaurantInput = z.infer<typeof bootstrapRestaurantSchema>;

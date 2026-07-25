@@ -23,6 +23,7 @@ import BillingPage from './pages/BillingPage';
 import MentionsLegalesPage from './pages/legal/MentionsLegalesPage';
 import CGUPage from './pages/legal/CGUPage';
 import ConfidentialitePage from './pages/legal/ConfidentialitePage';
+import NotFoundPage from './pages/NotFoundPage';
 
 // Phase 1.4 : routing complet + authentification côté client.
 // Phase 1.5 : carte, fiches techniques, fournisseurs/produits.
@@ -60,6 +61,8 @@ function App() {
               <Route path="/waste" element={<WastePage />} />
             </Route>
           </Route>
+
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>
