@@ -92,8 +92,7 @@ Ajouter un plugin PostgreSQL au projet Railway. Récupère automatiquement une v
   npm install --include=dev --workspace=backend --workspace=packages/shared --include-workspace-root && npx prisma generate --schema=backend/prisma/schema.prisma && npm run build -w backend
   ```
   (`npm install`, pas `npm ci` — `ci` supprime tout `node_modules` avant d'installer, ce qui entre en conflit avec le cache de build de Railway sur ce monorepo. `--include=dev` est nécessaire même si `NODE_ENV=production` est défini, sinon les dépendances de dev — typescript, prisma CLI — sont sautées et le build échoue.)
-- **Pre-deploy command** : `npx prisma migrate deploy --schema=backend/prisma/schema.prisma` (applique les migrations à chaque déploiement, avant le démarrage)
-- **Start command** : `node backend/dist/index.js`
+- **Start command** : `npx prisma migrate deploy --schema=backend/prisma/schema.prisma && node backend/dist/index.js` (applique les migrations en attente avant chaque démarrage — le champ dédié « Pre-deploy command » de Railway existe mais n'a, dans les faits, jamais déclenché la migration lors des premiers déploiements de ce projet ; la commande combinée dans le start command est la version qui fonctionne réellement, vérifiée dans les logs de production)
 - **Variables** : `DATABASE_URL` = `${{Postgres.DATABASE_URL}}`, `NODE_ENV=production`, `PORT=3001` (fixer explicitement, sinon Railway assigne un port dynamique différent de celui attendu par le domaine généré), `JWT_ACCESS_SECRET`/`JWT_REFRESH_SECRET` (générer des valeurs aléatoires dédiées à la production, jamais celles du `.env` local), `JWT_ACCESS_EXPIRES_IN=15m`, `JWT_REFRESH_EXPIRES_IN=7d`, et si souhaité `ANTHROPIC_API_KEY`/`RESEND_API_KEY`/`RESEND_FROM_EMAIL` (sinon repli automatique en saisie/envoi manuel, voir Phases 3/4)
 - Générer un domaine public sur le port 3001
 
@@ -107,8 +106,13 @@ Ajouter un plugin PostgreSQL au projet Railway. Récupère automatiquement une v
 - **Variables** : `VITE_API_BASE_URL` = URL publique du service backend (ⓘ variable lue au **build**, pas au runtime — le backend doit donc déjà avoir son domaine généré avant de builder le frontend), `NODE_ENV=production`
 - Générer un domaine public : vérifier dans les logs de démarrage le port réel utilisé par `serve` (visible dans `railway logs`) et le renseigner comme port cible du domaine
 
+### 4. Service de sauvegarde (optionnel mais recommandé)
+Railway ne propose aucune sauvegarde automatique native pour Postgres. Voir [`backup/README.md`](backup/README.md) pour la configuration complète (image dédiée avec `pg_dump`, volume, déclenchement quotidien via le Cron Schedule natif de Railway).
+
 ### Après déploiement
 Vérifier `GET /health` sur le domaine backend (`{"status":"ok","database":"connected"}`), puis charger le domaine frontend et créer un compte de test via `/onboarding` pour valider la chaîne complète.
+
+⚠️ **Piège observé en pratique** : un redéploiement (`railway up`) d'un service peut silencieusement remettre sa région par défaut (`sfo`, US) même après un réglage explicite via `railway service scale`. Revérifier la région de chaque service après tout déploiement plutôt que de la supposer acquise.
 
 ## Suivi du projet
 
