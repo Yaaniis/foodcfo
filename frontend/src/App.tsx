@@ -5,6 +5,8 @@ import GerantRoute from './components/GerantRoute';
 import RequireRole from './components/RequireRole';
 import LoginPage from './pages/LoginPage';
 import OnboardingPage from './pages/OnboardingPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import TeamPage from './pages/TeamPage';
 import MenuPage from './pages/MenuPage';
@@ -31,6 +33,8 @@ function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/onboarding" element={<OnboardingPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/mentions-legales" element={<MentionsLegalesPage />} />
           <Route path="/cgu" element={<CGUPage />} />
           <Route path="/confidentialite" element={<ConfidentialitePage />} />

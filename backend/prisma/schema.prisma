@@ -232,6 +232,24 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
+// Rattaché à l'email, pas à un userId précis : un compte multi-restaurant
+// (voir User) a une ligne par restaurant mais un seul mot de passe
+// partagé — réinitialiser doit mettre à jour toutes ces lignes à la
+// fois, pas une seule, sous peine de mots de passe désynchronisés entre
+// les restaurants d'un même compte.
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  email     String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  createdAt DateTime  @default(now())
+
+  @@index([email])
+  @@map("password_reset_tokens")
+}
+
 // ============================================================================
 // SUPPLIER — fournisseurs (boucher, poissonnier, primeur, caviste...)
 // ============================================================================

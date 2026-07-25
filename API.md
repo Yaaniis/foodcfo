@@ -15,6 +15,8 @@ Rôles : **GERANT** (accès total), **CUISINE** (fiches techniques, gaspillage, 
 | POST | `/login` | public | `{ email, password, restaurantId? }` → `{ accessToken, refreshToken, user }` ; ou, si l'email est lié à plusieurs restaurants et qu'aucun `restaurantId` n'est fourni, `{ requiresRestaurantSelection: true, restaurants: [{ restaurantId, restaurantName, role }] }` (renvoyer la requête avec le `restaurantId` choisi) |
 | POST | `/refresh` | public | `{ refreshToken }` → nouveaux tokens (rotation : l'ancien refresh token est révoqué) |
 | POST | `/logout` | public | `{ refreshToken }` → révoque le refresh token, `204` |
+| POST | `/forgot-password` | public | `{ email }` → `{ message }` générique, identique que le compte existe ou non (jamais d'énumération). Envoie un email (Resend) avec un lien de réinitialisation valable 1h si le compte existe |
+| POST | `/reset-password` | public | `{ token, newPassword }` → `204`. Met à jour le mot de passe de **tous** les comptes liés à cet email (multi-restaurant), révoque toutes les sessions actives (refresh tokens), invalide le token. `400 INVALID_RESET_TOKEN` si absent/expiré/déjà utilisé |
 
 `GET /api/me` (authentifié, tous rôles) : renvoie le profil complet de l'utilisateur connecté (id, email, prénom, nom, rôle, restaurantId).
 

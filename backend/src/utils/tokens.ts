@@ -8,7 +8,7 @@
 //   hash — jamais en clair — pour pouvoir le révoquer individuellement.
 
 import jwt from 'jsonwebtoken';
-import { createHash, randomUUID } from 'crypto';
+import { createHash, randomBytes, randomUUID } from 'crypto';
 import type { UserRole } from '@prisma/client';
 import { env } from '../config/env';
 
@@ -51,6 +51,14 @@ export function verifyRefreshToken(token: string): { sub: string } {
 // pas besoin de sel/coût argon2, juste d'un hash pour la recherche.
 export function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
+}
+
+// Token opaque (pas un JWT) pour la réinitialisation de mot de passe :
+// pas besoin de claims embarquées, juste un secret imprévisible envoyé
+// par email et vérifié par sa présence en base (hashToken) — même
+// principe que le refresh token.
+export function generateResetToken(): string {
+  return randomBytes(32).toString('hex');
 }
 
 // Convertit une durée façon JWT ("15m", "7d", "1h") en date d'expiration

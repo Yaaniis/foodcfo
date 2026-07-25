@@ -121,6 +121,9 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
               />
+              <Link to="/forgot-password" className="text-sm text-slate-500 underline mt-1 inline-block">
+                Mot de passe oublié ?
+              </Link>
             </div>
 
             {error && (

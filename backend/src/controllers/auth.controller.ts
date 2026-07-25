@@ -9,16 +9,12 @@
 import type { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { logger } from '../lib/logger';
-import { verifyPassword } from '../utils/password';
-import {
-  signAccessToken,
-  signRefreshToken,
-  verifyRefreshToken,
-  hashToken,
-  expiryDateFromDuration,
-} from '../utils/tokens';
-import { loginSchema, refreshSchema } from '../schemas/auth.schemas';
+import { verifyPassword, hashPassword } from '../utils/password';
+import { signAccessToken, signRefreshToken, verifyRefreshToken, hashToken, expiryDateFromDuration } from '../utils/tokens';
+import { loginSchema, refreshSchema, forgotPasswordSchema, resetPasswordSchema } from '../schemas/auth.schemas';
 import { env } from '../config/env';
+import { sendEmail, EmailError } from '../lib/email';
+import { createPasswordResetToken } from '../lib/passwordReset';
 
 export async function login(req: Request, res: Response) {
   const { email, password, restaurantId } = loginSchema.parse(req.body);
@@ -146,6 +142,68 @@ export async function logout(req: Request, res: Response) {
     where: { tokenHash: hashToken(refreshToken), revokedAt: null },
     data: { revokedAt: new Date() },
   });
+
+  return res.status(204).send();
+}
+
+const GENERIC_FORGOT_PASSWORD_MESSAGE = 'Si un compte existe avec cette adresse, un email de réinitialisation a été envoyé.';
+
+// Réponse strictement identique que l'email existe ou non (délai réseau
+// mis à part) : révéler la différence permettrait à quiconque de
+// vérifier quelles adresses ont un compte sur FoodCFO.
+export async function forgotPassword(req: Request, res: Response) {
+  const { email } = forgotPasswordSchema.parse(req.body);
+
+  const users = await prisma.user.findMany({ where: { email } });
+
+  if (users.length > 0) {
+    const rawToken = await createPasswordResetToken(email);
+    const resetUrl = `${env.FRONTEND_URL ?? 'http://localhost:5173'}/reset-password?token=${rawToken}`;
+    try {
+      await sendEmail(
+        email,
+        'Réinitialisation de votre mot de passe FoodCFO',
+        `Bonjour,\n\nUne demande de réinitialisation de mot de passe a été faite pour ce compte FoodCFO.\n\nPour choisir un nouveau mot de passe, cliquez sur ce lien (valable 1 heure) :\n${resetUrl}\n\nSi vous n'êtes pas à l'origine de cette demande, ignorez cet email — votre mot de passe actuel reste inchangé.`,
+      );
+    } catch (err) {
+      // Ne remonte jamais au client : même situation que l'envoi de
+      // commande/rapport, la clé Resend peut être un placeholder en
+      // environnement de démo — le token reste créé en base, seul son
+      // acheminement par email échoue.
+      const message = err instanceof EmailError ? err.message : "Échec inattendu de l'envoi de l'email.";
+      logger.warn({ email, err: message }, 'Échec de l’envoi de l’email de réinitialisation');
+    }
+  }
+
+  return res.json({ message: GENERIC_FORGOT_PASSWORD_MESSAGE });
+}
+
+export async function resetPassword(req: Request, res: Response) {
+  const { token, newPassword } = resetPasswordSchema.parse(req.body);
+
+  const resetToken = await prisma.passwordResetToken.findUnique({ where: { tokenHash: hashToken(token) } });
+
+  if (!resetToken || resetToken.usedAt || resetToken.expiresAt < new Date()) {
+    return res.status(400).json({ error: 'INVALID_RESET_TOKEN', message: 'Lien de réinitialisation invalide ou expiré.' });
+  }
+
+  const passwordHash = await hashPassword(newPassword);
+
+  // Un compte multi-restaurant a une ligne User par restaurant partageant
+  // le même mot de passe (voir addRestaurant) — les mettre toutes à jour,
+  // pas seulement la première trouvée, sous peine de désynchronisation.
+  const users = await prisma.user.findMany({ where: { email: resetToken.email } });
+
+  await prisma.$transaction([
+    prisma.user.updateMany({ where: { email: resetToken.email }, data: { passwordHash } }),
+    prisma.refreshToken.updateMany({
+      where: { userId: { in: users.map((u) => u.id) }, revokedAt: null },
+      data: { revokedAt: new Date() },
+    }),
+    prisma.passwordResetToken.update({ where: { id: resetToken.id }, data: { usedAt: new Date() } }),
+  ]);
+
+  logger.info({ email: resetToken.email }, 'Mot de passe réinitialisé');
 
   return res.status(204).send();
 }
