@@ -17,6 +17,9 @@ import OrderDetailPage from './pages/OrderDetailPage';
 import WastePage from './pages/WastePage';
 import ReportsPage from './pages/ReportsPage';
 import ConsolidatedPage from './pages/ConsolidatedPage';
+import MentionsLegalesPage from './pages/legal/MentionsLegalesPage';
+import CGUPage from './pages/legal/CGUPage';
+import ConfidentialitePage from './pages/legal/ConfidentialitePage';
 
 // Phase 1.4 : routing complet + authentification côté client.
 // Phase 1.5 : carte, fiches techniques, fournisseurs/produits.
@@ -27,6 +30,9 @@ function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/onboarding" element={<OnboardingPage />} />
+          <Route path="/mentions-legales" element={<MentionsLegalesPage />} />
+          <Route path="/cgu" element={<CGUPage />} />
+          <Route path="/confidentialite" element={<ConfidentialitePage />} />
 
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<DashboardPage />} />

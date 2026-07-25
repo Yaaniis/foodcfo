@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ApiRequestError } from '../lib/apiClient';
+import LegalFooter from '../components/LegalFooter';
 
 export default function OnboardingPage() {
   const { createRestaurant } = useAuth();
@@ -31,7 +32,8 @@ export default function OnboardingPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4 py-8">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
+      <div className="w-full max-w-sm">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
         <h1 className="text-2xl font-bold text-slate-900 mb-1">Créer mon restaurant</h1>
         <p className="text-slate-500 mb-6">Vous deviendrez automatiquement Gérant de ce restaurant.</p>
 
@@ -129,6 +131,8 @@ export default function OnboardingPage() {
             Se connecter
           </Link>
         </p>
+      </div>
+      <LegalFooter />
       </div>
     </div>
   );
