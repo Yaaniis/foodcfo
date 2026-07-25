@@ -4,7 +4,18 @@
     "outDir": "dist",
     "rootDir": "src",
     "lib": ["ES2022"],
-    "types": ["node"]
+    "types": ["node"],
+    // Sortie CommonJS plutôt qu'ESNext : le code source utilise des
+    // imports relatifs sans extension (ex: "./app"), valides sous
+    // "moduleResolution": "Bundler" (hérité de tsconfig.base.json, utile
+    // pour tsx en dev) mais qui cassent au runtime avec Node ESM natif
+    // ("type": "module" + fichiers .js réels) puisque Node exige
+    // l'extension explicite. CommonJS n'a pas cette contrainte — pas
+    // besoin de réécrire tous les imports du projet. Découvert lors du
+    // premier vrai déploiement (Railway) : jusque-là, seul tsx (dev) et
+    // vitest (tests) exécutaient ce code, jamais "node dist/index.js".
+    "module": "CommonJS",
+    "moduleResolution": "Node10"
   },
   "include": ["src"],
   "exclude": ["node_modules", "dist"]
