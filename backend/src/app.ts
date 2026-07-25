@@ -13,6 +13,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 
+import { env } from './config/env';
 import { logger } from './lib/logger';
 import { prisma } from './lib/prisma';
 import { authRouter } from './routes/auth.routes';
@@ -33,8 +34,28 @@ import { asyncHandler } from './utils/asyncHandler';
 
 export const app = express();
 
+// Railway (comme tout hébergeur avec load balancer/edge proxy) place le
+// serveur derrière un proxy inverse : sans ce réglage, `req.ip` renverrait
+// systématiquement l'IP du proxy, pas celle du client — cassant à la fois
+// le rate limiting (tous les utilisateurs partageraient la même limite)
+// et tout log/blocage basé sur l'IP. `1` = fait confiance au premier
+// saut devant Express (le edge proxy Railway), pas à la chaîne entière.
+app.set('trust proxy', 1);
+
 app.use(helmet());
-app.use(cors());
+
+// N'autorise que le frontend connu (+ localhost en dev) plutôt que
+// toute origine (`cors()` sans options renvoie `*`) — l'API sert des
+// données financières/opérationnelles de restaurants, autant limiter
+// dès maintenant quel site peut l'interroger depuis un navigateur.
+const allowedOrigins = [env.FRONTEND_URL, 'http://localhost:5173', 'http://127.0.0.1:5173'].filter(
+  (origin): origin is string => Boolean(origin),
+);
+app.use(
+  cors({
+    origin: allowedOrigins,
+  }),
+);
 app.use(express.json());
 
 // Health check enrichi : vérifie aussi que la base de données répond,

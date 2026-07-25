@@ -15,6 +15,11 @@ const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(1, 'JWT_REFRESH_SECRET est requis'),
   JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
+  // Origine du frontend autorisée en CORS en production (ex :
+  // https://foodcfo-frontend-production.up.railway.app, ou le futur nom
+  // de domaine). Optionnelle : en dev/test, localhost est toujours
+  // autorisé sans configuration.
+  FRONTEND_URL: z.string().optional(),
   // Optionnelle : sans clé valide, l'extraction IA des factures (Phase 3)
   // échoue proprement et bascule sur la saisie manuelle assistée, plutôt
   // que d'empêcher le serveur de démarrer.

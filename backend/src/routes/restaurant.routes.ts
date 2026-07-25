@@ -13,12 +13,13 @@ import {
 import { requireAuth } from '../middleware/auth';
 import { requireRole } from '../middleware/requireRole';
 import { asyncHandler } from '../utils/asyncHandler';
+import { bootstrapRateLimiter } from '../middleware/rateLimit';
 
 export const restaurantRouter = Router();
 
 // Public volontairement : c'est le tout premier point d'entrée d'un
 // nouveau restaurant, avant qu'aucun compte n'existe.
-restaurantRouter.post('/bootstrap', asyncHandler(bootstrap));
+restaurantRouter.post('/bootstrap', bootstrapRateLimiter, asyncHandler(bootstrap));
 
 restaurantRouter.get('/me', requireAuth, asyncHandler(getMyRestaurant));
 restaurantRouter.patch('/me/thresholds', requireAuth, requireRole('GERANT'), asyncHandler(updateThresholds));
