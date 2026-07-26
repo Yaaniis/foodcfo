@@ -10,7 +10,7 @@ import { env } from '../config/env';
 // snake_case minuscule, notre enum Prisma les mêmes noms en majuscules —
 // un mapping exhaustif fait échouer la compilation si Stripe ajoute un
 // jour un nouveau statut, plutôt qu'un cast qui masquerait l'écart.
-const STRIPE_STATUS_MAP: Record<Stripe.Subscription.Status, SubscriptionStatus> = {
+export const STRIPE_STATUS_MAP: Record<Stripe.Subscription.Status, SubscriptionStatus> = {
   incomplete: SubscriptionStatus.INCOMPLETE,
   incomplete_expired: SubscriptionStatus.INCOMPLETE_EXPIRED,
   trialing: SubscriptionStatus.TRIALING,
@@ -20,6 +20,19 @@ const STRIPE_STATUS_MAP: Record<Stripe.Subscription.Status, SubscriptionStatus> 
   unpaid: SubscriptionStatus.UNPAID,
   paused: SubscriptionStatus.PAUSED,
 };
+
+// Extrait de handleStripeWebhook pour être testable directement — aucune
+// vraie clé Stripe n'existe dans cet environnement, impossible de
+// générer une signature de webhook valide pour tester via le endpoint
+// HTTP. Traduit un objet Stripe.Subscription en données prêtes pour
+// Prisma, sans dépendance à Express ni à un appel réseau Stripe.
+export function subscriptionToRestaurantUpdate(subscription: Stripe.Subscription) {
+  return {
+    stripeSubscriptionId: subscription.id,
+    subscriptionStatus: STRIPE_STATUS_MAP[subscription.status],
+    subscriptionCurrentPeriodEnd: new Date(subscription.items.data[0]!.current_period_end * 1000),
+  };
+}
 
 // Statut d'abonnement du restaurant courant + indique si la facturation
 // en ligne est configurée du tout (clé Stripe absente = fonctionnalité
@@ -135,10 +148,15 @@ export async function handleStripeWebhook(req: Request, res: Response) {
       }
       break;
     }
-    // Couvre à la fois les mises à jour de statut (paiement réussi/échoué,
-    // passage past_due) et la résiliation — Stripe envoie
-    // customer.subscription.deleted avec le même statut "canceled" que
-    // deleted, on utilise directement subscription.status dans les deux cas.
+    // customer.subscription.created (pas .updated) est l'évènement que
+    // Stripe envoie pour un tout premier abonnement — sans lui, le
+    // statut d'un nouvel abonné resterait `null` indéfiniment après un
+    // paiement pourtant réussi, jusqu'au prochain renouvellement (un
+    // mois plus tard). Couvre aussi les mises à jour de statut
+    // (paiement réussi/échoué, passage past_due) et la résiliation —
+    // customer.subscription.deleted envoie le même statut "canceled",
+    // on utilise directement subscription.status dans tous les cas.
+    case 'customer.subscription.created':
     case 'customer.subscription.updated':
     case 'customer.subscription.deleted': {
       const subscription = event.data.object as Stripe.Subscription;
@@ -146,11 +164,7 @@ export async function handleStripeWebhook(req: Request, res: Response) {
       if (restaurant) {
         await prisma.restaurant.update({
           where: { id: restaurant.id },
-          data: {
-            stripeSubscriptionId: subscription.id,
-            subscriptionStatus: STRIPE_STATUS_MAP[subscription.status],
-            subscriptionCurrentPeriodEnd: new Date(subscription.items.data[0]!.current_period_end * 1000),
-          },
+          data: subscriptionToRestaurantUpdate(subscription),
         });
       }
       break;

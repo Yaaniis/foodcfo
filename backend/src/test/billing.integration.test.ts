@@ -8,8 +8,8 @@ import { prisma } from '../lib/prisma';
 // plutôt que de vraies sessions Stripe — même principe que les tests
 // email/WhatsApp/SMS qui vérifient le chemin d'échec en l'absence de
 // vraies clés. La logique de synchronisation par webhook (mapping des
-// statuts Stripe → SubscriptionStatus) est elle testée séparément, sans
-// dépendre d'une vraie signature Stripe.
+// statuts Stripe → SubscriptionStatus) est testée séparément dans
+// billing.controller.test.ts, sans dépendre d'une vraie signature Stripe.
 describe('Facturation — statut et sessions Stripe', () => {
   const suffix = Date.now();
   const createdRestaurantIds: string[] = [];
