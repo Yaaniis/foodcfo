@@ -112,6 +112,21 @@ describe('Factures — upload, repli manuel, validation', () => {
     });
     expect(alerts).toHaveLength(1);
     expect(alerts[0].message).toContain('Filet de bœuf');
+
+    // Revalider la même facture (double-clic, requête rejouée) ne doit
+    // ni recréer d'historique de prix ni régénérer d'alerte.
+    const revalidateRes = await request(app)
+      .post(`/api/invoices/${invoiceId}/validate`)
+      .set('Authorization', `Bearer ${restaurant.accessToken}`);
+    expect(revalidateRes.status).toBe(409);
+    expect(revalidateRes.body.error).toBe('ALREADY_VALIDATED');
+
+    const priceHistoryAfterRetry = await prisma.priceHistory.findMany({ where: { productId } });
+    expect(priceHistoryAfterRetry).toHaveLength(1);
+    const alertsAfterRetry = await prisma.marginAlert.findMany({
+      where: { restaurantId: restaurant.user.restaurantId, type: 'SUPPLIER_PRICE_INCREASE' },
+    });
+    expect(alertsAfterRetry).toHaveLength(1);
   });
 
   it("ne génère pas d'alerte quand la hausse de prix reste sous le seuil configuré", async () => {

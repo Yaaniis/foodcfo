@@ -253,6 +253,13 @@ export async function validateInvoice(req: Request, res: Response) {
   if (!invoice) {
     return res.status(404).json({ error: 'NOT_FOUND', message: 'Facture introuvable.' });
   }
+  // Sans ce garde-fou, valider deux fois la même facture (double-clic,
+  // requête réseau rejouée) recréerait un historique de prix et
+  // recalculerait les alertes à chaque appel — la validation doit être
+  // un aller simple.
+  if (invoice.status === 'VALIDATED') {
+    return res.status(409).json({ error: 'ALREADY_VALIDATED', message: 'Cette facture a déjà été validée.' });
+  }
   if (!invoice.supplierId) {
     return res
       .status(400)
