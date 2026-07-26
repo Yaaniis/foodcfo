@@ -294,6 +294,11 @@ export default function DashboardPage() {
             </Link>
           )}
           {user?.role === 'GERANT' && (
+            <Link to="/restaurant-settings" className="inline-block mr-6 text-slate-900 font-medium underline">
+              Paramètres du restaurant →
+            </Link>
+          )}
+          {user?.role === 'GERANT' && (
             <Link to="/billing" className="inline-block text-slate-900 font-medium underline">
               Abonnement →
             </Link>

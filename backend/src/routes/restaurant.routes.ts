@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   bootstrap,
   getMyRestaurant,
+  updateRestaurant,
   updateThresholds,
   exportRestaurantData,
   deleteRestaurant,
@@ -22,6 +23,7 @@ export const restaurantRouter = Router();
 restaurantRouter.post('/bootstrap', bootstrapRateLimiter, asyncHandler(bootstrap));
 
 restaurantRouter.get('/me', requireAuth, asyncHandler(getMyRestaurant));
+restaurantRouter.patch('/me', requireAuth, requireRole('GERANT'), asyncHandler(updateRestaurant));
 restaurantRouter.patch('/me/thresholds', requireAuth, requireRole('GERANT'), asyncHandler(updateThresholds));
 
 // RGPD (exigence transversale du plan) : export et suppression sur

@@ -34,6 +34,25 @@ export const updateThresholdsSchema = z
 
 export type UpdateThresholdsInput = z.infer<typeof updateThresholdsSchema>;
 
+// Un identifiant de fuseau horaire invalide ferait planter tout calcul
+// "ce mois-ci" (Intl.DateTimeFormat lève une RangeError, voir
+// lib/timezone.ts) — validé contre la liste IANA officielle exposée
+// par le moteur JS plutôt que laissé en texte libre.
+const ianaTimezoneSchema = z.string().refine((value) => Intl.supportedValuesOf('timeZone').includes(value), {
+  message: 'Fuseau horaire invalide.',
+});
+
+export const updateRestaurantSchema = z
+  .object({
+    name: z.string().min(1).optional(),
+    timezone: ianaTimezoneSchema.optional(),
+  })
+  .refine((data) => Object.keys(data).length > 0, {
+    message: 'Au moins un champ à modifier est requis.',
+  });
+
+export type UpdateRestaurantInput = z.infer<typeof updateRestaurantSchema>;
+
 // Ajout d'un restaurant supplémentaire au compte du Gérant déjà
 // connecté — pas de mot de passe à ressaisir (contrairement à
 // bootstrap, réservé aux tout premiers comptes non authentifiés) : le

@@ -9,6 +9,7 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import AccountPage from './pages/AccountPage';
+import RestaurantSettingsPage from './pages/RestaurantSettingsPage';
 import TeamPage from './pages/TeamPage';
 import MenuPage from './pages/MenuPage';
 import RecipePage from './pages/RecipePage';
@@ -50,6 +51,7 @@ function App() {
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/consolidated" element={<ConsolidatedPage />} />
               <Route path="/billing" element={<BillingPage />} />
+              <Route path="/restaurant-settings" element={<RestaurantSettingsPage />} />
             </Route>
 
             <Route element={<RequireRole roles={['GERANT', 'CUISINE']} />}>

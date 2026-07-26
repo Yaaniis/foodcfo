@@ -16,6 +16,7 @@ import { signAccessToken, signRefreshToken, hashToken, expiryDateFromDuration } 
 import {
   bootstrapRestaurantSchema,
   updateThresholdsSchema,
+  updateRestaurantSchema,
   addRestaurantSchema,
   switchRestaurantSchema,
 } from '../schemas/restaurant.schemas';
@@ -97,11 +98,31 @@ export async function getMyRestaurant(req: Request, res: Response) {
     select: {
       id: true,
       name: true,
+      timezone: true,
       marginGreenThreshold: true,
       marginOrangeThreshold: true,
       priceIncreaseAlertThreshold: true,
     },
   });
+  res.json({ restaurant });
+}
+
+// Nom et fuseau horaire uniquement — pas `currency`, un champ présent
+// au schéma mais jamais lu nulle part dans le code applicatif (tous
+// les montants affichent "€" en dur) : le rendre modifiable donnerait
+// l'illusion d'un effet qui n'existe pas. `timezone` a un vrai effet
+// depuis lib/timezone.ts : corriger un fuseau mal choisi à la création
+// change directement les calculs "ce mois-ci" (tableau de bord,
+// rapport, gaspillage, export comptable).
+export async function updateRestaurant(req: Request, res: Response) {
+  const input = updateRestaurantSchema.parse(req.body);
+
+  const restaurant = await prisma.restaurant.update({
+    where: { id: req.user!.restaurantId },
+    data: input,
+    select: { id: true, name: true, timezone: true },
+  });
+
   res.json({ restaurant });
 }
 
