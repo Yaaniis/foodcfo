@@ -237,6 +237,66 @@ describe('Factures — upload, repli manuel, validation', () => {
     expect(getRes.body.invoice.sourceFileData).toBeUndefined();
   });
 
+  it("une facture déjà validée ne peut plus être modifiée (fournisseur, lignes) — évite de désynchroniser l'historique de prix déjà figé", async () => {
+    const restaurant = await bootstrapRestaurant('I');
+    const { supplierId, productId } = await setupSupplierAndProduct(restaurant.accessToken, 20);
+    const otherSupplier = await request(app)
+      .post('/api/suppliers')
+      .set('Authorization', `Bearer ${restaurant.accessToken}`)
+      .send({ name: 'Autre Fournisseur', category: 'Boucherie', preferredChannel: 'EMAIL' });
+
+    const uploadRes = await request(app)
+      .post('/api/invoices')
+      .set('Authorization', `Bearer ${restaurant.accessToken}`)
+      .field('supplierId', supplierId)
+      .attach('file', Buffer.from('%PDF-1.4\ncontenu factice'), 'facture.pdf');
+    const invoiceId = uploadRes.body.invoice.id as string;
+
+    const lineRes = await request(app)
+      .post(`/api/invoices/${invoiceId}/lines`)
+      .set('Authorization', `Bearer ${restaurant.accessToken}`)
+      .send({ rawLabel: 'Filet de bœuf 1kg', productId, quantity: 1, unitPriceHT: 20, totalPriceHT: 20 });
+    const lineId = lineRes.body.line.id as string;
+
+    const validateRes = await request(app)
+      .post(`/api/invoices/${invoiceId}/validate`)
+      .set('Authorization', `Bearer ${restaurant.accessToken}`);
+    expect(validateRes.status).toBe(200);
+
+    const patchRes = await request(app)
+      .patch(`/api/invoices/${invoiceId}`)
+      .set('Authorization', `Bearer ${restaurant.accessToken}`)
+      .send({ supplierId: otherSupplier.body.supplier.id });
+    expect(patchRes.status).toBe(409);
+    expect(patchRes.body.error).toBe('INVOICE_VALIDATED');
+
+    const addLineRes = await request(app)
+      .post(`/api/invoices/${invoiceId}/lines`)
+      .set('Authorization', `Bearer ${restaurant.accessToken}`)
+      .send({ rawLabel: 'Nouvelle ligne', productId, quantity: 1, unitPriceHT: 5, totalPriceHT: 5 });
+    expect(addLineRes.status).toBe(409);
+    expect(addLineRes.body.error).toBe('INVOICE_VALIDATED');
+
+    const updateLineRes = await request(app)
+      .patch(`/api/invoices/${invoiceId}/lines/${lineId}`)
+      .set('Authorization', `Bearer ${restaurant.accessToken}`)
+      .send({ unitPriceHT: 999, totalPriceHT: 999 });
+    expect(updateLineRes.status).toBe(409);
+    expect(updateLineRes.body.error).toBe('INVOICE_VALIDATED');
+
+    const deleteLineRes = await request(app)
+      .delete(`/api/invoices/${invoiceId}/lines/${lineId}`)
+      .set('Authorization', `Bearer ${restaurant.accessToken}`);
+    expect(deleteLineRes.status).toBe(409);
+    expect(deleteLineRes.body.error).toBe('INVOICE_VALIDATED');
+
+    // Rien de tout ça n'a dû changer l'état réel.
+    const stillThere = await prisma.invoiceLineItem.findUniqueOrThrow({ where: { id: lineId } });
+    expect(Number(stillThere.unitPriceHT)).toBe(20);
+    const invoiceUnchanged = await prisma.invoice.findUniqueOrThrow({ where: { id: invoiceId } });
+    expect(invoiceUnchanged.supplierId).toBe(supplierId);
+  });
+
   it('le rôle Service ne peut pas accéder aux factures (décision 0.5)', async () => {
     const restaurant = await bootstrapRestaurant('G');
     const serviceUser = await request(app)

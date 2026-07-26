@@ -151,6 +151,18 @@ export async function uploadInvoice(req: Request, res: Response) {
   }
 }
 
+// Une facture VALIDATED a déjà nourri PriceHistory, mis à jour
+// Product.currentPriceHT et potentiellement généré des MarginAlert —
+// la modifier après coup (fournisseur, lignes) désynchroniserait
+// silencieusement ces données déjà figées, y compris le montant déjà
+// arrêté dans invoice.totalAmount (jamais recalculé après validation).
+// Même principe que le garde-fou déjà en place sur validateInvoice
+// elle-même (double-validation).
+const INVOICE_LOCKED_MESSAGE = {
+  error: 'INVOICE_VALIDATED',
+  message: 'Cette facture est déjà validée et ne peut plus être modifiée.',
+} as const;
+
 export async function patchInvoice(req: Request, res: Response) {
   const input = patchInvoiceSchema.parse(req.body);
 
@@ -159,6 +171,9 @@ export async function patchInvoice(req: Request, res: Response) {
   });
   if (!existing) {
     return res.status(404).json({ error: 'NOT_FOUND', message: 'Facture introuvable.' });
+  }
+  if (existing.status === 'VALIDATED') {
+    return res.status(409).json(INVOICE_LOCKED_MESSAGE);
   }
 
   if (input.supplierId) {
@@ -187,6 +202,9 @@ export async function addInvoiceLine(req: Request, res: Response) {
   if (!invoice) {
     return res.status(404).json({ error: 'NOT_FOUND', message: 'Facture introuvable.' });
   }
+  if (invoice.status === 'VALIDATED') {
+    return res.status(409).json(INVOICE_LOCKED_MESSAGE);
+  }
 
   if (input.productId) {
     const product = await prisma.product.findFirst({
@@ -208,9 +226,13 @@ export async function updateInvoiceLine(req: Request, res: Response) {
 
   const line = await prisma.invoiceLineItem.findFirst({
     where: { id: req.params.lineId, invoice: { id: req.params.id, restaurantId: req.user!.restaurantId } },
+    include: { invoice: { select: { status: true } } },
   });
   if (!line) {
     return res.status(404).json({ error: 'NOT_FOUND', message: 'Ligne de facture introuvable.' });
+  }
+  if (line.invoice.status === 'VALIDATED') {
+    return res.status(409).json(INVOICE_LOCKED_MESSAGE);
   }
 
   if (input.productId) {
@@ -232,9 +254,13 @@ export async function updateInvoiceLine(req: Request, res: Response) {
 export async function deleteInvoiceLine(req: Request, res: Response) {
   const line = await prisma.invoiceLineItem.findFirst({
     where: { id: req.params.lineId, invoice: { id: req.params.id, restaurantId: req.user!.restaurantId } },
+    include: { invoice: { select: { status: true } } },
   });
   if (!line) {
     return res.status(404).json({ error: 'NOT_FOUND', message: 'Ligne de facture introuvable.' });
+  }
+  if (line.invoice.status === 'VALIDATED') {
+    return res.status(409).json(INVOICE_LOCKED_MESSAGE);
   }
   await prisma.invoiceLineItem.delete({ where: { id: line.id } });
   res.status(204).send();
