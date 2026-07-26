@@ -318,7 +318,12 @@ async function main() {
       status: InvoiceStatus.VALIDATED,
       invoiceDate: new Date('2026-07-10'),
       totalAmount: 242.00,
-      sourceFileUrl: 'seed/factures/maree-bleue-2026-07-10.pdf',
+      // Fichier factice minimal (mais un en-tête PDF réel) — le seed ne
+      // passe pas par l'endpoint d'upload donc pas de vraie validation
+      // de type, mais /:id/file doit quand même répondre avec un
+      // contenu cohérent avec le mimeType si quelqu'un teste dessus.
+      sourceFileData: Buffer.from('%PDF-1.4\n% Facture de démonstration (seed)'),
+      sourceFileMimeType: 'application/pdf',
       lineItems: {
         create: [
           {
