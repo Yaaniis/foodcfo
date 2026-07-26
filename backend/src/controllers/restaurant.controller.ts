@@ -257,6 +257,11 @@ export async function addRestaurant(req: Request, res: Response) {
           role: 'GERANT',
           firstName: currentUser.firstName,
           lastName: currentUser.lastName,
+          // Même personne, déjà connectée avec le compte qui a accepté
+          // les CGU au bootstrap — pas une nouvelle acceptation à
+          // recueillir, juste la même preuve reportée sur la nouvelle
+          // ligne (comme le mot de passe, déjà copié ci-dessus).
+          termsAcceptedAt: currentUser.termsAcceptedAt,
         },
       },
     },

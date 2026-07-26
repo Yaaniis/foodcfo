@@ -61,6 +61,12 @@ describe('Multi-restaurant — ajout, connexion, switch, vue consolidée', () =>
     expect(res.body.user.email).toBe(restaurantA.user.email);
     expect(res.body.user.restaurantId).not.toBe(restaurantA.user.restaurantId);
     expect(res.body.user.role).toBe('GERANT');
+
+    // La preuve d'acceptation des CGU du compte doit être reportée sur
+    // la nouvelle ligne User, pas laissée vide — même personne, déjà
+    // acceptée une fois au bootstrap.
+    const newUser = await prisma.user.findUniqueOrThrow({ where: { id: res.body.user.id as string } });
+    expect(newUser.termsAcceptedAt).not.toBeNull();
   });
 
   it('connexion avec un compte multi-restaurant sans préciser lequel → renvoie la liste pour sélection', async () => {
