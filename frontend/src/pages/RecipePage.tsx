@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ApiRequestError } from '../lib/apiClient';
 import { computeMarginPreview, MARGIN_STATUS_STYLES, MARGIN_STATUS_LABELS } from '../lib/margin';
+import { ALLERGENS, ALLERGEN_LABELS } from '../lib/allergens';
 
 interface Product {
   id: string;
@@ -19,8 +20,10 @@ interface RecipeIngredientRow {
 interface MenuItemDetail {
   id: string;
   name: string;
+  category: string;
   sellingPriceTTC: string;
   vatRate: string;
+  allergens: string[];
   recipe: { ingredients: { productId: string; quantity: string; product: Product }[] } | null;
 }
 
@@ -55,8 +58,11 @@ export default function RecipePage() {
     orangeThreshold: 60,
   });
   const [rows, setRows] = useState<RecipeIngredientRow[]>([]);
+  const [name, setName] = useState('');
+  const [category, setCategory] = useState('');
   const [price, setPrice] = useState('');
   const [vatRate, setVatRate] = useState('TAUX_10');
+  const [allergens, setAllergens] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -76,8 +82,11 @@ export default function RecipePage() {
         greenThreshold: Number(restaurantData.restaurant.marginGreenThreshold),
         orangeThreshold: Number(restaurantData.restaurant.marginOrangeThreshold),
       });
+      setName(itemData.menuItem.name);
+      setCategory(itemData.menuItem.category);
       setPrice(String(itemData.menuItem.sellingPriceTTC));
       setVatRate(itemData.menuItem.vatRate);
+      setAllergens(itemData.menuItem.allergens);
       const existingRows =
         itemData.menuItem.recipe?.ingredients.map((i) => ({
           productId: i.productId,
@@ -106,6 +115,10 @@ export default function RecipePage() {
 
   function removeRow(index: number) {
     setRows((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function toggleAllergen(a: string) {
+    setAllergens((prev) => (prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a]));
   }
 
   // Recalcul en direct à chaque changement d'ingrédient/quantité/prix —
@@ -138,14 +151,20 @@ export default function RecipePage() {
       });
 
       if (menuItem) {
+        const nameChanged = name !== menuItem.name;
+        const categoryChanged = category !== menuItem.category;
         const priceChanged = Number(price) !== Number(menuItem.sellingPriceTTC);
         const vatChanged = vatRate !== menuItem.vatRate;
-        if (priceChanged || vatChanged) {
+        const allergensChanged = JSON.stringify([...allergens].sort()) !== JSON.stringify([...menuItem.allergens].sort());
+        if (nameChanged || categoryChanged || priceChanged || vatChanged || allergensChanged) {
           await authFetch(`/api/menu-items/${menuItemId}`, {
             method: 'PATCH',
             body: JSON.stringify({
+              ...(nameChanged ? { name } : {}),
+              ...(categoryChanged ? { category } : {}),
               ...(priceChanged ? { sellingPriceTTC: Number(price) } : {}),
               ...(vatChanged ? { vatRate } : {}),
+              ...(allergensChanged ? { allergens } : {}),
             }),
           });
         }
@@ -183,6 +202,25 @@ export default function RecipePage() {
           <form onSubmit={handleSave} className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <label className="block text-sm font-medium text-slate-700">
+                Nom du plat
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="mt-1 w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
+                />
+              </label>
+              <label className="block text-sm font-medium text-slate-700">
+                Catégorie
+                <input
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="mt-1 w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
+                />
+              </label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block text-sm font-medium text-slate-700">
                 Prix de vente TTC (€)
                 <input
                   type="number"
@@ -207,6 +245,26 @@ export default function RecipePage() {
                   ))}
                 </select>
               </label>
+            </div>
+
+            <div>
+              <p className="text-sm font-medium text-slate-700 mb-2">Allergènes présents</p>
+              <div className="flex flex-wrap gap-2">
+                {ALLERGENS.map((a) => (
+                  <button
+                    type="button"
+                    key={a}
+                    onClick={() => toggleAllergen(a)}
+                    className={`min-h-[44px] px-3 rounded-lg text-sm border ${
+                      allergens.includes(a)
+                        ? 'bg-slate-900 text-white border-slate-900'
+                        : 'bg-white text-slate-700 border-slate-300'
+                    }`}
+                  >
+                    {ALLERGEN_LABELS[a]}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {rows.map((row, index) => (

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ApiRequestError } from '../lib/apiClient';
 import { MARGIN_STATUS_STYLES, MARGIN_STATUS_LABELS, type MarginPreview } from '../lib/margin';
+import { ALLERGENS, ALLERGEN_LABELS } from '../lib/allergens';
 
 interface MenuItem {
   id: string;
@@ -20,40 +21,6 @@ const VAT_LABELS: Record<string, string> = {
   TAUX_5_5: '5,5 %',
   TAUX_10: '10 %',
   TAUX_20: '20 %',
-};
-
-const ALLERGENS = [
-  'GLUTEN',
-  'CRUSTACES',
-  'OEUFS',
-  'POISSON',
-  'ARACHIDES',
-  'SOJA',
-  'LAIT',
-  'FRUITS_A_COQUE',
-  'CELERI',
-  'MOUTARDE',
-  'SESAME',
-  'SULFITES',
-  'LUPIN',
-  'MOLLUSQUES',
-] as const;
-
-const ALLERGEN_LABELS: Record<string, string> = {
-  GLUTEN: 'Gluten',
-  CRUSTACES: 'Crustacés',
-  OEUFS: 'Œufs',
-  POISSON: 'Poisson',
-  ARACHIDES: 'Arachides',
-  SOJA: 'Soja',
-  LAIT: 'Lait',
-  FRUITS_A_COQUE: 'Fruits à coque',
-  CELERI: 'Céleri',
-  MOUTARDE: 'Moutarde',
-  SESAME: 'Sésame',
-  SULFITES: 'Sulfites',
-  LUPIN: 'Lupin',
-  MOLLUSQUES: 'Mollusques',
 };
 
 export default function MenuPage() {
