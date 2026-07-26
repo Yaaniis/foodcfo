@@ -36,7 +36,8 @@ const UNIT_LABELS: Record<string, string> = {
 };
 
 export default function SuppliersProductsPage() {
-  const { authFetch } = useAuth();
+  const { authFetch, user } = useAuth();
+  const canDelete = user?.role === 'GERANT';
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -53,6 +54,16 @@ export default function SuppliersProductsPage() {
   const [productUnit, setProductUnit] = useState('KG');
   const [productPrice, setProductPrice] = useState('');
   const [productSupplierId, setProductSupplierId] = useState('');
+
+  const [editingSupplierId, setEditingSupplierId] = useState<string | null>(null);
+  const [editSupplierName, setEditSupplierName] = useState('');
+  const [editSupplierCategory, setEditSupplierCategory] = useState('');
+  const [editSupplierChannel, setEditSupplierChannel] = useState('EMAIL');
+
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [editProductName, setEditProductName] = useState('');
+  const [editProductUnit, setEditProductUnit] = useState('KG');
+  const [editProductPrice, setEditProductPrice] = useState('');
 
   async function loadAll() {
     setIsLoading(true);
@@ -110,6 +121,76 @@ export default function SuppliersProductsPage() {
       await loadAll();
     } catch (err) {
       setError(err instanceof ApiRequestError ? err.message : 'Impossible de créer ce produit.');
+    }
+  }
+
+  function startEditSupplier(s: Supplier) {
+    setEditingSupplierId(s.id);
+    setEditSupplierName(s.name);
+    setEditSupplierCategory(s.category);
+    setEditSupplierChannel(s.preferredChannel);
+  }
+
+  async function handleUpdateSupplier(e: FormEvent, id: string) {
+    e.preventDefault();
+    try {
+      await authFetch(`/api/suppliers/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name: editSupplierName, category: editSupplierCategory, preferredChannel: editSupplierChannel }),
+      });
+      setEditingSupplierId(null);
+      await loadAll();
+    } catch (err) {
+      setError(err instanceof ApiRequestError ? err.message : 'Impossible de modifier ce fournisseur.');
+    }
+  }
+
+  async function handleDeleteSupplier(id: string) {
+    if (!window.confirm('Désactiver ce fournisseur ? Il disparaîtra des listes, mais son historique (factures, commandes passées) reste conservé.')) {
+      return;
+    }
+    try {
+      await authFetch(`/api/suppliers/${id}`, { method: 'DELETE' });
+      await loadAll();
+    } catch (err) {
+      setError(err instanceof ApiRequestError ? err.message : 'Impossible de désactiver ce fournisseur.');
+    }
+  }
+
+  function startEditProduct(p: Product) {
+    setEditingProductId(p.id);
+    setEditProductName(p.name);
+    setEditProductUnit(p.unit);
+    setEditProductPrice(p.currentPriceHT);
+  }
+
+  async function handleUpdateProduct(e: FormEvent, id: string) {
+    e.preventDefault();
+    try {
+      await authFetch(`/api/products/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name: editProductName, unit: editProductUnit, currentPriceHT: Number(editProductPrice) }),
+      });
+      setEditingProductId(null);
+      await loadAll();
+    } catch (err) {
+      setError(err instanceof ApiRequestError ? err.message : 'Impossible de modifier ce produit.');
+    }
+  }
+
+  async function handleDeleteProduct(id: string) {
+    if (!window.confirm('Supprimer définitivement ce produit ?')) {
+      return;
+    }
+    try {
+      await authFetch(`/api/products/${id}`, { method: 'DELETE' });
+      await loadAll();
+    } catch (err) {
+      setError(
+        err instanceof ApiRequestError
+          ? err.message
+          : 'Impossible de supprimer ce produit.',
+      );
     }
   }
 
@@ -173,14 +254,80 @@ export default function SuppliersProductsPage() {
             <p className="text-slate-500">Chargement…</p>
           ) : (
             <ul className="space-y-2">
-              {suppliers.map((s) => (
-                <li key={s.id} className="bg-white rounded-xl border border-slate-200 p-4">
-                  <p className="font-medium text-slate-900">{s.name}</p>
-                  <p className="text-sm text-slate-500">
-                    {s.category} · {CHANNEL_LABELS[s.preferredChannel]}
-                  </p>
-                </li>
-              ))}
+              {suppliers.map((s) =>
+                editingSupplierId === s.id ? (
+                  <li key={s.id}>
+                    <form
+                      onSubmit={(e) => handleUpdateSupplier(e, s.id)}
+                      className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3"
+                    >
+                      <input
+                        required
+                        value={editSupplierName}
+                        onChange={(e) => setEditSupplierName(e.target.value)}
+                        className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
+                      />
+                      <input
+                        required
+                        value={editSupplierCategory}
+                        onChange={(e) => setEditSupplierCategory(e.target.value)}
+                        className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
+                      />
+                      <select
+                        value={editSupplierChannel}
+                        onChange={(e) => setEditSupplierChannel(e.target.value)}
+                        className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
+                      >
+                        {Object.entries(CHANNEL_LABELS).map(([value, label]) => (
+                          <option key={value} value={value}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="flex gap-2">
+                        <button
+                          type="submit"
+                          className="flex-1 min-h-[44px] rounded-lg bg-slate-900 text-white font-medium"
+                        >
+                          Enregistrer
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingSupplierId(null)}
+                          className="flex-1 min-h-[44px] rounded-lg border border-slate-300 font-medium"
+                        >
+                          Annuler
+                        </button>
+                      </div>
+                    </form>
+                  </li>
+                ) : (
+                  <li key={s.id} className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium text-slate-900 truncate">{s.name}</p>
+                      <p className="text-sm text-slate-500">
+                        {s.category} · {CHANNEL_LABELS[s.preferredChannel]}
+                      </p>
+                    </div>
+                    <div className="shrink-0 flex gap-2">
+                      <button
+                        onClick={() => startEditSupplier(s)}
+                        className="min-h-[44px] px-3 rounded-lg border border-slate-300 text-sm font-medium"
+                      >
+                        Modifier
+                      </button>
+                      {canDelete && (
+                        <button
+                          onClick={() => handleDeleteSupplier(s.id)}
+                          className="min-h-[44px] px-3 rounded-lg border border-red-200 text-red-600 text-sm font-medium"
+                        >
+                          Désactiver
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                ),
+              )}
             </ul>
           )}
         </section>
@@ -261,17 +408,86 @@ export default function SuppliersProductsPage() {
             <p className="text-slate-500">Chargement…</p>
           ) : (
             <ul className="space-y-2">
-              {products.map((p) => (
-                <li key={p.id} className="bg-white rounded-xl border border-slate-200 p-4 flex justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-medium text-slate-900 truncate">{p.name}</p>
-                    <p className="text-sm text-slate-500 truncate">{p.supplier.name}</p>
-                  </div>
-                  <p className="shrink-0 text-sm text-slate-700">
-                    {Number(p.currentPriceHT).toFixed(2)} € / {UNIT_LABELS[p.unit]}
-                  </p>
-                </li>
-              ))}
+              {products.map((p) =>
+                editingProductId === p.id ? (
+                  <li key={p.id}>
+                    <form
+                      onSubmit={(e) => handleUpdateProduct(e, p.id)}
+                      className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3"
+                    >
+                      <input
+                        required
+                        value={editProductName}
+                        onChange={(e) => setEditProductName(e.target.value)}
+                        className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
+                      />
+                      <div className="grid grid-cols-2 gap-3">
+                        <select
+                          value={editProductUnit}
+                          onChange={(e) => setEditProductUnit(e.target.value)}
+                          className="min-h-[44px] rounded-lg border border-slate-300 px-3"
+                        >
+                          {Object.entries(UNIT_LABELS).map(([value, label]) => (
+                            <option key={value} value={value}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          type="number"
+                          step="0.0001"
+                          min="0"
+                          required
+                          value={editProductPrice}
+                          onChange={(e) => setEditProductPrice(e.target.value)}
+                          className="min-h-[44px] rounded-lg border border-slate-300 px-3"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="submit"
+                          className="flex-1 min-h-[44px] rounded-lg bg-slate-900 text-white font-medium"
+                        >
+                          Enregistrer
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingProductId(null)}
+                          className="flex-1 min-h-[44px] rounded-lg border border-slate-300 font-medium"
+                        >
+                          Annuler
+                        </button>
+                      </div>
+                    </form>
+                  </li>
+                ) : (
+                  <li key={p.id} className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium text-slate-900 truncate">{p.name}</p>
+                      <p className="text-sm text-slate-500 truncate">{p.supplier.name}</p>
+                    </div>
+                    <div className="shrink-0 flex items-center gap-2">
+                      <p className="text-sm text-slate-700 whitespace-nowrap">
+                        {Number(p.currentPriceHT).toFixed(2)} € / {UNIT_LABELS[p.unit]}
+                      </p>
+                      <button
+                        onClick={() => startEditProduct(p)}
+                        className="min-h-[44px] px-3 rounded-lg border border-slate-300 text-sm font-medium"
+                      >
+                        Modifier
+                      </button>
+                      {canDelete && (
+                        <button
+                          onClick={() => handleDeleteProduct(p.id)}
+                          className="min-h-[44px] px-3 rounded-lg border border-red-200 text-red-600 text-sm font-medium"
+                        >
+                          Supprimer
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                ),
+              )}
             </ul>
           )}
         </section>
