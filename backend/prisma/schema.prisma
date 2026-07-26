@@ -436,9 +436,16 @@ model Invoice {
   invoiceDate DateTime?
   totalAmount Decimal?  @db.Decimal(10, 2)
 
-  // Chemin/URL du fichier source (PDF/JPG) stocké (S3-compatible ou
-  // volume local selon l'hébergement retenu).
-  sourceFileUrl String
+  // Fichier source (PDF/JPG) stocké directement en base plutôt que sur
+  // le disque du conteneur : le service backend Railway n'a aucun
+  // volume persistant attaché (contrairement à Postgres) — un fichier
+  // écrit sur disque serait perdu au prochain redéploiement (bug réel
+  // détecté et corrigé le 26/07/2026, avant toute vraie donnée en
+  // production). Stocker en base a aussi l'avantage d'être couvert
+  // automatiquement par les sauvegardes automatiques (backup/) au même
+  // titre que le reste des données.
+  sourceFileData     Bytes
+  sourceFileMimeType String
 
   // Réponse brute de l'extraction IA (API Claude vision), conservée pour
   // audit et pour ré-analyser sans re-uploader si le parsing évolue.

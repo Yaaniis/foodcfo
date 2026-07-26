@@ -1,6 +1,3 @@
-import { randomUUID } from 'node:crypto';
-import { mkdir, writeFile, readFile } from 'node:fs/promises';
-import path from 'node:path';
 import type { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { logger } from '../lib/logger';
@@ -12,12 +9,34 @@ import {
   updateInvoiceLineSchema,
 } from '../schemas/invoice.schemas';
 
-const UPLOADS_DIR = path.join(process.cwd(), 'uploads', 'invoices');
+// `omit` demanderait d'activer une preview feature sur cette version de
+// Prisma — un `select` explicite de tous les champs scalaires sauf
+// sourceFileData obtient le même résultat sans configuration
+// supplémentaire. Les octets du fichier n'ont aucune raison de voyager
+// dans une réponse de liste/détail (potentiellement plusieurs Mo par
+// facture) — seul /:id/file en a besoin.
+const INVOICE_SCALARS_WITHOUT_FILE = {
+  id: true,
+  restaurantId: true,
+  supplierId: true,
+  status: true,
+  invoiceDate: true,
+  totalAmount: true,
+  sourceFileMimeType: true,
+  rawExtractionJson: true,
+  errorMessage: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
 
 export async function listInvoices(req: Request, res: Response) {
   const invoices = await prisma.invoice.findMany({
     where: { restaurantId: req.user!.restaurantId },
-    include: { supplier: { select: { id: true, name: true } }, lineItems: true },
+    select: {
+      ...INVOICE_SCALARS_WITHOUT_FILE,
+      supplier: { select: { id: true, name: true } },
+      lineItems: true,
+    },
     orderBy: { createdAt: 'desc' },
   });
   res.json({ invoices });
@@ -26,7 +45,8 @@ export async function listInvoices(req: Request, res: Response) {
 export async function getInvoice(req: Request, res: Response) {
   const invoice = await prisma.invoice.findFirst({
     where: { id: req.params.id, restaurantId: req.user!.restaurantId },
-    include: {
+    select: {
+      ...INVOICE_SCALARS_WITHOUT_FILE,
       supplier: { select: { id: true, name: true } },
       lineItems: { include: { product: { select: { id: true, name: true, unit: true } } } },
     },
@@ -40,24 +60,25 @@ export async function getInvoice(req: Request, res: Response) {
 // Sert le fichier source de la facture — en passant par une route
 // authentifiée (plutôt qu'un dossier statique public) pour ne jamais
 // exposer les factures d'un restaurant à qui que ce soit d'autre.
+// Stocké en base (sourceFileData), pas sur le disque du conteneur : le
+// service backend n'a aucun volume persistant attaché, un fichier écrit
+// sur disque serait perdu au prochain redéploiement.
 export async function getInvoiceFile(req: Request, res: Response) {
   const invoice = await prisma.invoice.findFirst({
     where: { id: req.params.id, restaurantId: req.user!.restaurantId },
+    select: { sourceFileData: true, sourceFileMimeType: true },
   });
   if (!invoice) {
     return res.status(404).json({ error: 'NOT_FOUND', message: 'Facture introuvable.' });
   }
-  const filePath = path.join(process.cwd(), invoice.sourceFileUrl);
-  const buffer = await readFile(filePath);
-  const fileType = detectFileType(buffer);
-  res.setHeader('Content-Type', fileType ?? 'application/octet-stream');
-  res.send(buffer);
+  res.setHeader('Content-Type', invoice.sourceFileMimeType);
+  res.send(invoice.sourceFileData);
 }
 
 // Upload d'une facture (PDF/JPG/PNG) : vérifie le type réel du fichier
 // via ses magic bytes (jamais le Content-Type déclaré par le client, ni
-// l'extension), le stocke sur disque, puis tente l'extraction
-// automatique via l'API Claude. En cas d'échec de l'extraction (clé API
+// l'extension), le stocke en base, puis tente l'extraction automatique
+// via l'API Claude. En cas d'échec de l'extraction (clé API
 // absente/invalide, quota, réponse mal formée...), la facture passe en
 // statut ERROR mais reste exploitable : l'utilisateur peut saisir les
 // lignes manuellement (repli explicitement demandé par le plan).
@@ -85,20 +106,15 @@ export async function uploadInvoice(req: Request, res: Response) {
     supplierId = supplier.id;
   }
 
-  await mkdir(UPLOADS_DIR, { recursive: true });
-  const extension = fileType === 'application/pdf' ? 'pdf' : fileType === 'image/png' ? 'png' : 'jpg';
-  const fileName = `${randomUUID()}.${extension}`;
-  const absolutePath = path.join(UPLOADS_DIR, fileName);
-  await writeFile(absolutePath, req.file.buffer);
-  const relativePath = path.join('uploads', 'invoices', fileName);
-
   const invoice = await prisma.invoice.create({
     data: {
       restaurantId: req.user!.restaurantId,
       supplierId,
-      sourceFileUrl: relativePath,
+      sourceFileData: req.file.buffer,
+      sourceFileMimeType: fileType,
       status: 'PROCESSING',
     },
+    select: INVOICE_SCALARS_WITHOUT_FILE,
   });
 
   try {
@@ -119,7 +135,7 @@ export async function uploadInvoice(req: Request, res: Response) {
           })),
         },
       },
-      include: { lineItems: true },
+      select: { ...INVOICE_SCALARS_WITHOUT_FILE, lineItems: true },
     });
     return res.status(201).json({ invoice: updated });
   } catch (err) {
@@ -129,6 +145,7 @@ export async function uploadInvoice(req: Request, res: Response) {
     const updated = await prisma.invoice.update({
       where: { id: invoice.id },
       data: { status: 'ERROR', errorMessage: message },
+      select: INVOICE_SCALARS_WITHOUT_FILE,
     });
     return res.status(201).json({ invoice: updated });
   }
@@ -153,7 +170,11 @@ export async function patchInvoice(req: Request, res: Response) {
     }
   }
 
-  const invoice = await prisma.invoice.update({ where: { id: existing.id }, data: input });
+  const invoice = await prisma.invoice.update({
+    where: { id: existing.id },
+    data: input,
+    select: INVOICE_SCALARS_WITHOUT_FILE,
+  });
   res.json({ invoice });
 }
 
@@ -308,7 +329,11 @@ export async function validateInvoice(req: Request, res: Response) {
 
   const updated = await prisma.invoice.findUniqueOrThrow({
     where: { id: invoice.id },
-    include: { lineItems: true, supplier: { select: { id: true, name: true } } },
+    select: {
+      ...INVOICE_SCALARS_WITHOUT_FILE,
+      lineItems: true,
+      supplier: { select: { id: true, name: true } },
+    },
   });
 
   res.json({ invoice: updated, alertsGenerated: alerts });

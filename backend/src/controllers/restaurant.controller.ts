@@ -126,7 +126,28 @@ export async function exportRestaurantData(req: Request, res: Response) {
         where: { restaurantId },
         include: { recipe: { include: { ingredients: true } } },
       }),
-      prisma.invoice.findMany({ where: { restaurantId }, include: { lineItems: true } }),
+      // sourceFileData exclu (select explicite plutôt que omit, qui
+      // demanderait une preview feature sur cette version de Prisma) :
+      // des octets bruts n'ont pas leur place dans un export JSON pensé
+      // pour être lisible (et Buffer se sérialise en JSON comme un
+      // tableau d'un octet par élément, illisible et énorme).
+      prisma.invoice.findMany({
+        where: { restaurantId },
+        select: {
+          id: true,
+          restaurantId: true,
+          supplierId: true,
+          status: true,
+          invoiceDate: true,
+          totalAmount: true,
+          sourceFileMimeType: true,
+          rawExtractionJson: true,
+          errorMessage: true,
+          createdAt: true,
+          updatedAt: true,
+          lineItems: true,
+        },
+      }),
       prisma.order.findMany({ where: { restaurantId }, include: { lineItems: true } }),
       prisma.wasteEntry.findMany({ where: { restaurantId } }),
       prisma.marginAlert.findMany({ where: { restaurantId } }),

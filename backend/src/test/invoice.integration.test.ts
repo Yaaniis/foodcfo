@@ -179,6 +179,37 @@ describe('Factures — upload, repli manuel, validation', () => {
     expect(getRes.status).toBe(404);
   });
 
+  it('le fichier source survient au cycle complet upload → récupération (stocké en base, pas sur disque), et reste absent des réponses liste/détail', async () => {
+    const restaurant = await bootstrapRestaurant('H');
+    const originalBytes = Buffer.from('%PDF-1.4\ncontenu factice pour vérifier les octets exacts');
+
+    const uploadRes = await request(app)
+      .post('/api/invoices')
+      .set('Authorization', `Bearer ${restaurant.accessToken}`)
+      .attach('file', originalBytes, 'facture.pdf');
+    expect(uploadRes.status).toBe(201);
+    expect(uploadRes.body.invoice.sourceFileData).toBeUndefined();
+    const invoiceId = uploadRes.body.invoice.id as string;
+
+    const fileRes = await request(app)
+      .get(`/api/invoices/${invoiceId}/file`)
+      .set('Authorization', `Bearer ${restaurant.accessToken}`)
+      .responseType('blob');
+    expect(fileRes.status).toBe(200);
+    expect(fileRes.headers['content-type']).toBe('application/pdf');
+    expect(Buffer.compare(Buffer.from(fileRes.body as Buffer), originalBytes)).toBe(0);
+
+    const listRes = await request(app)
+      .get('/api/invoices')
+      .set('Authorization', `Bearer ${restaurant.accessToken}`);
+    expect(listRes.body.invoices[0].sourceFileData).toBeUndefined();
+
+    const getRes = await request(app)
+      .get(`/api/invoices/${invoiceId}`)
+      .set('Authorization', `Bearer ${restaurant.accessToken}`);
+    expect(getRes.body.invoice.sourceFileData).toBeUndefined();
+  });
+
   it('le rôle Service ne peut pas accéder aux factures (décision 0.5)', async () => {
     const restaurant = await bootstrapRestaurant('G');
     const serviceUser = await request(app)
