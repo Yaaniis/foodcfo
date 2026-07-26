@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type Stripe from 'stripe';
-import { subscriptionToRestaurantUpdate, STRIPE_STATUS_MAP } from './billing.controller';
+import { SubscriptionStatus } from '@prisma/client';
+import { subscriptionToRestaurantUpdate, needsStripeCancellation, STRIPE_STATUS_MAP } from './billing.controller';
 
 // Construit un objet minimal mais fidèle à la forme réelle d'un
 // Stripe.Subscription — seuls les champs lus par
@@ -54,5 +55,31 @@ describe('subscriptionToRestaurantUpdate', () => {
   it('mappe la résiliation (canceled) correctement', () => {
     const subscription = fakeSubscription({ id: 'sub_456', status: 'canceled', currentPeriodEndUnix: 1735689600 });
     expect(subscriptionToRestaurantUpdate(subscription).subscriptionStatus).toBe('CANCELED');
+  });
+});
+
+// Couvre le bug corrigé en même temps que la suppression RGPD
+// (restaurant.controller.ts) : sans ce garde-fou, un restaurant ayant
+// eu un abonnement continuait d'être facturé indéfiniment après la
+// suppression de son compte, faute de toute trace permettant de
+// résilier après coup.
+describe('needsStripeCancellation', () => {
+  it("vrai si un abonnement existe et n'est pas déjà résilié", () => {
+    expect(needsStripeCancellation({ stripeSubscriptionId: 'sub_1', subscriptionStatus: SubscriptionStatus.ACTIVE })).toBe(
+      true,
+    );
+    expect(
+      needsStripeCancellation({ stripeSubscriptionId: 'sub_1', subscriptionStatus: SubscriptionStatus.PAST_DUE }),
+    ).toBe(true);
+  });
+
+  it("faux si aucun abonnement n'a jamais été créé", () => {
+    expect(needsStripeCancellation({ stripeSubscriptionId: null, subscriptionStatus: null })).toBe(false);
+  });
+
+  it('faux si déjà résilié — évite un appel Stripe inutile qui échouerait', () => {
+    expect(
+      needsStripeCancellation({ stripeSubscriptionId: 'sub_1', subscriptionStatus: SubscriptionStatus.CANCELED }),
+    ).toBe(false);
   });
 });

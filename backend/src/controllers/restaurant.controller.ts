@@ -22,6 +22,8 @@ import {
 import { deleteRestaurantSchema } from '../schemas/dataPrivacy.schemas';
 import { env } from '../config/env';
 import { gatherDashboardData } from './dashboard.controller';
+import { stripe, isBillingConfigured } from '../lib/stripe';
+import { needsStripeCancellation } from './billing.controller';
 
 export async function bootstrap(req: Request, res: Response) {
   const { restaurantName, currency, timezone, gerant } = bootstrapRestaurantSchema.parse(req.body);
@@ -188,6 +190,28 @@ export async function deleteRestaurant(req: Request, res: Response) {
       error: 'CONFIRMATION_MISMATCH',
       message: 'Le nom saisi ne correspond pas au nom exact du restaurant.',
     });
+  }
+
+  // Résilie l'abonnement Stripe AVANT de supprimer les données, et on
+  // s'arrête net si ça échoue — contrairement au repli habituel des
+  // autres intégrations externes (email/WhatsApp/SMS, où l'action
+  // principale reste utile même si la notification échoue). Ici, une
+  // fois le restaurant supprimé, `stripeSubscriptionId` disparaît avec
+  // lui : c'était la seule trace permettant d'arrêter la facturation.
+  // Le laisser filer silencieusement facturerait indéfiniment un client
+  // qui a supprimé son compte, sans qu'il (ni nous) ayons plus aucun
+  // moyen de le voir ou de le corriger.
+  if (isBillingConfigured && stripe && needsStripeCancellation(restaurant)) {
+    try {
+      await stripe.subscriptions.cancel(restaurant.stripeSubscriptionId!);
+    } catch (err) {
+      logger.error({ err, restaurantId }, "Échec de la résiliation Stripe avant suppression RGPD — suppression annulée");
+      return res.status(502).json({
+        error: 'SUBSCRIPTION_CANCELLATION_FAILED',
+        message:
+          "Impossible de résilier l'abonnement en cours avant la suppression. Réessayez, ou contactez le support si le problème persiste.",
+      });
+    }
   }
 
   await prisma.$transaction([

@@ -34,6 +34,19 @@ export function subscriptionToRestaurantUpdate(subscription: Stripe.Subscription
   };
 }
 
+// Utilisé avant une suppression RGPD (restaurant.controller.ts) pour
+// décider si un appel à l'API Stripe est nécessaire — évite à la fois
+// d'appeler Stripe pour un restaurant qui n'a jamais souscrit, et de
+// ré-appeler `subscriptions.cancel` sur un abonnement déjà résilié
+// (Stripe répond alors par une erreur, ce qui bloquerait la
+// suppression sans raison).
+export function needsStripeCancellation(restaurant: {
+  stripeSubscriptionId: string | null;
+  subscriptionStatus: SubscriptionStatus | null;
+}): boolean {
+  return Boolean(restaurant.stripeSubscriptionId) && restaurant.subscriptionStatus !== SubscriptionStatus.CANCELED;
+}
+
 // Statut d'abonnement du restaurant courant + indique si la facturation
 // en ligne est configurée du tout (clé Stripe absente = fonctionnalité
 // simplement masquée côté frontend, pas une erreur).

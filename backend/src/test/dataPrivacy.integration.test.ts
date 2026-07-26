@@ -182,6 +182,28 @@ describe('RGPD — export et suppression des données sur demande', () => {
       expect(stillExists).not.toBeNull();
     });
 
+    it("n'est pas bloquée par un ancien identifiant d'abonnement Stripe quand la facturation n'est pas configurée (cet environnement)", async () => {
+      // Sans vraie clé Stripe (`isBillingConfigured === false`), la
+      // tentative de résiliation est court-circuitée avant tout appel
+      // réseau — ce test verrouille ce comportement pour l'état actuel
+      // de l'environnement, distinct du scénario "facturation active"
+      // couvert unitairement par `needsStripeCancellation` (billing.controller.test.ts).
+      const restaurant = await bootstrapRestaurant('H');
+      await prisma.restaurant.update({
+        where: { id: restaurant.user.restaurantId },
+        data: { stripeSubscriptionId: 'sub_fake_not_configured' },
+      });
+
+      const res = await request(app)
+        .delete('/api/restaurants/me')
+        .set('Authorization', `Bearer ${restaurant.accessToken}`)
+        .send({ confirmRestaurantName: 'Restaurant RGPD H' });
+
+      expect(res.status).toBe(204);
+      const gone = await prisma.restaurant.findUnique({ where: { id: restaurant.user.restaurantId } });
+      expect(gone).toBeNull();
+    });
+
     it("isolation multi-tenant : supprimer un restaurant n'affecte pas les données d'un autre", async () => {
       const restaurantA = await bootstrapRestaurant('F');
       const restaurantB = await bootstrapRestaurant('G');
