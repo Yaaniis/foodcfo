@@ -33,6 +33,12 @@ export default function TeamPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editFirstName, setEditFirstName] = useState('');
+  const [editLastName, setEditLastName] = useState('');
+  const [editRole, setEditRole] = useState<UserRole>('SERVICE');
+  const [editError, setEditError] = useState<string | null>(null);
+
   async function loadMembers() {
     setIsLoading(true);
     setLoadError(null);
@@ -81,8 +87,33 @@ export default function TeamPage() {
         body: JSON.stringify({ isActive: !member.isActive }),
       });
       await loadMembers();
-    } catch {
-      setLoadError('Impossible de modifier cet utilisateur pour le moment.');
+    } catch (err) {
+      setLoadError(
+        err instanceof ApiRequestError ? err.message : 'Impossible de modifier cet utilisateur pour le moment.',
+      );
+    }
+  }
+
+  function startEdit(member: TeamMember) {
+    setEditingId(member.id);
+    setEditFirstName(member.firstName);
+    setEditLastName(member.lastName);
+    setEditRole(member.role);
+    setEditError(null);
+  }
+
+  async function handleUpdate(e: FormEvent, id: string) {
+    e.preventDefault();
+    setEditError(null);
+    try {
+      await authFetch(`/api/users/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ firstName: editFirstName, lastName: editLastName, role: editRole }),
+      });
+      setEditingId(null);
+      await loadMembers();
+    } catch (err) {
+      setEditError(err instanceof ApiRequestError ? err.message : 'Impossible de modifier cet utilisateur.');
     }
   }
 
@@ -162,29 +193,90 @@ export default function TeamPage() {
         {loadError && <p className="text-red-600">{loadError}</p>}
 
         <ul className="space-y-2">
-          {members.map((m) => (
-            <li
-              key={m.id}
-              className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between gap-3"
-            >
-              <div className="min-w-0">
-                <p className="font-medium text-slate-900 truncate">
-                  {m.firstName} {m.lastName}
-                </p>
-                <p className="text-sm text-slate-500 truncate">
-                  {m.email} · {ROLE_LABELS[m.role]}
-                </p>
-              </div>
-              <button
-                onClick={() => toggleActive(m)}
-                className={`shrink-0 min-h-[44px] px-3 rounded-lg text-sm font-medium ${
-                  m.isActive ? 'bg-slate-100 text-slate-700' : 'bg-red-50 text-red-600'
-                }`}
+          {members.map((m) =>
+            editingId === m.id ? (
+              <li key={m.id}>
+                <form
+                  onSubmit={(e) => handleUpdate(e, m.id)}
+                  className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3"
+                >
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      required
+                      value={editFirstName}
+                      onChange={(e) => setEditFirstName(e.target.value)}
+                      className="min-h-[44px] rounded-lg border border-slate-300 px-3"
+                    />
+                    <input
+                      required
+                      value={editLastName}
+                      onChange={(e) => setEditLastName(e.target.value)}
+                      className="min-h-[44px] rounded-lg border border-slate-300 px-3"
+                    />
+                  </div>
+                  <select
+                    value={editRole}
+                    onChange={(e) => setEditRole(e.target.value as UserRole)}
+                    className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
+                  >
+                    <option value="GERANT">Gérant</option>
+                    <option value="CUISINE">Cuisine</option>
+                    <option value="SERVICE">Service</option>
+                  </select>
+                  {editError && (
+                    <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                      {editError}
+                    </p>
+                  )}
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      className="flex-1 min-h-[44px] rounded-lg bg-slate-900 text-white font-medium"
+                    >
+                      Enregistrer
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingId(null)}
+                      className="flex-1 min-h-[44px] rounded-lg border border-slate-300 font-medium"
+                    >
+                      Annuler
+                    </button>
+                  </div>
+                </form>
+              </li>
+            ) : (
+              <li
+                key={m.id}
+                className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between gap-3"
               >
-                {m.isActive ? 'Actif' : 'Désactivé'}
-              </button>
-            </li>
-          ))}
+                <div className="min-w-0">
+                  <p className="font-medium text-slate-900 truncate">
+                    {m.firstName} {m.lastName}
+                  </p>
+                  <p className="text-sm text-slate-500 truncate">
+                    {m.email} · {ROLE_LABELS[m.role]}
+                  </p>
+                </div>
+                <div className="shrink-0 flex gap-2">
+                  <button
+                    onClick={() => startEdit(m)}
+                    className="min-h-[44px] px-3 rounded-lg border border-slate-300 text-sm font-medium"
+                  >
+                    Modifier
+                  </button>
+                  <button
+                    onClick={() => toggleActive(m)}
+                    className={`min-h-[44px] px-3 rounded-lg text-sm font-medium ${
+                      m.isActive ? 'bg-slate-100 text-slate-700' : 'bg-red-50 text-red-600'
+                    }`}
+                  >
+                    {m.isActive ? 'Actif' : 'Désactivé'}
+                  </button>
+                </div>
+              </li>
+            ),
+          )}
         </ul>
       </div>
     </div>

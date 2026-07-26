@@ -72,6 +72,28 @@ export async function updateUser(req: Request, res: Response) {
     return res.status(404).json({ error: 'NOT_FOUND', message: 'Utilisateur introuvable.' });
   }
 
+  // Sans ce garde-fou, désactiver ou rétrograder le dernier Gérant actif
+  // (y compris soi-même) laisserait le restaurant sans personne
+  // habilitée à gérer l'équipe, la facturation ou les données RGPD —
+  // aucun mécanisme de récupération autre qu'une intervention directe
+  // en base.
+  const losingGerantStatus =
+    target.role === 'GERANT' &&
+    target.isActive &&
+    ((input.role !== undefined && input.role !== 'GERANT') || input.isActive === false);
+
+  if (losingGerantStatus) {
+    const otherActiveGerantCount = await prisma.user.count({
+      where: { restaurantId: req.user!.restaurantId, role: 'GERANT', isActive: true, id: { not: id } },
+    });
+    if (otherActiveGerantCount === 0) {
+      return res.status(409).json({
+        error: 'LAST_GERANT',
+        message: 'Impossible : ce restaurant se retrouverait sans aucun Gérant actif.',
+      });
+    }
+  }
+
   const updated = await prisma.user.update({ where: { id }, data: input, select: userPublicFields });
   return res.json({ user: updated });
 }
