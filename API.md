@@ -87,7 +87,7 @@ Réservé à GERANT et CUISINE (données de coût sensibles).
 | Méthode | Route | Description |
 |---|---|---|
 | GET | `/` | Liste des factures |
-| POST | `/` | Upload multipart (`file`, `supplierId?`). Vérifie le type réel du fichier (magic bytes). Tente l'extraction IA (Claude vision) ; en cas d'échec, statut `ERROR` avec `errorMessage`, saisie manuelle possible ensuite |
+| POST | `/` | Upload multipart (`file`, `supplierId?`). Vérifie le type réel du fichier (magic bytes). Tente l'extraction IA (Claude vision) ; en cas d'échec, statut `ERROR` avec `errorMessage`, saisie manuelle possible ensuite. Limité à 30/heure par restaurant (appel API payant une fois configuré) |
 | GET | `/:id` | Détail + lignes |
 | GET | `/:id/file` | Fichier source original |
 | PATCH | `/:id` | `{ supplierId?, invoiceDate?, totalAmount? }` |
@@ -107,7 +107,7 @@ Réservé à GERANT et CUISINE.
 | POST | `/from-cart` | `{ items: [{ productId, quantity }] }` → une commande brouillon par fournisseur représenté |
 | GET | `/:id` | Détail |
 | PATCH | `/:id/lines` | Modifie les lignes (uniquement si `DRAFT`) |
-| POST | `/:id/send` | Génère le message et tente l'envoi automatique selon le canal préféré du fournisseur (`Supplier.preferredChannel`) : email (Resend), WhatsApp Business (API Cloud Meta) ou SMS (Twilio). PHONE/WEB_PORTAL/FAX basculent sur l'email si une adresse est renseignée. Échec → commande reste `DRAFT`, `generatedMessage` renvoyé pour envoi manuel. Codes d'erreur : `MISSING_CONTACT_EMAIL`/`MISSING_CONTACT_PHONE` (`400`, coordonnée manquante) ; `EMAIL_SEND_FAILED`/`WHATSAPP_SEND_FAILED`/`SMS_SEND_FAILED` (`502`, échec de l'appel API) |
+| POST | `/:id/send` | Génère le message et tente l'envoi automatique selon le canal préféré du fournisseur (`Supplier.preferredChannel`) : email (Resend), WhatsApp Business (API Cloud Meta) ou SMS (Twilio). PHONE/WEB_PORTAL/FAX basculent sur l'email si une adresse est renseignée. Échec → commande reste `DRAFT`, `generatedMessage` renvoyé pour envoi manuel. Codes d'erreur : `MISSING_CONTACT_EMAIL`/`MISSING_CONTACT_PHONE` (`400`, coordonnée manquante) ; `EMAIL_SEND_FAILED`/`WHATSAPP_SEND_FAILED`/`SMS_SEND_FAILED` (`502`, échec de l'appel API). Limité à 30/heure par restaurant |
 | PATCH | `/:id/status` | `{ status }` — transitions autorisées : DRAFT→CANCELLED, SENT→{CONFIRMED, DELIVERED, CANCELLED}, CONFIRMED→DELIVERED |
 
 ## Gaspillage — `/api/waste`
@@ -128,7 +128,7 @@ Réservé à GERANT.
 |---|---|---|
 | GET | `/api/exports/invoices.csv?from&to` | Export comptable CSV des factures validées (mois en cours par défaut) |
 | GET | `/api/reports/monthly/preview` | Aperçu du rapport mensuel (données + email généré) |
-| POST | `/api/reports/monthly/send` | Envoie le rapport à tous les comptes Gérant actifs. Envoi automatique aussi programmé le 1er de chaque mois (`node-cron`) |
+| POST | `/api/reports/monthly/send` | Envoie le rapport à tous les comptes Gérant actifs. Envoi automatique aussi programmé le 1er de chaque mois (`node-cron`). Limité à 10/heure par restaurant |
 
 ## Facturation — `/api/billing`
 
