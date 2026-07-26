@@ -184,6 +184,16 @@ export default function WastePage() {
     }
   }
 
+  async function handleDelete(id: string) {
+    if (!window.confirm('Supprimer cette déclaration de perte ?')) return;
+    try {
+      await authFetch(`/api/waste/${id}`, { method: 'DELETE' });
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiRequestError ? err.message : 'Impossible de supprimer cette déclaration.');
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8">
       <div className="max-w-2xl mx-auto">
@@ -319,7 +329,7 @@ export default function WastePage() {
 
         <ul className="space-y-2">
           {entries.map((entry) => (
-            <li key={entry.id} className="bg-white rounded-xl border border-slate-200 p-4 flex justify-between gap-3">
+            <li key={entry.id} className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="font-medium text-slate-900 truncate">{entry.product?.name ?? entry.menuItem?.name}</p>
                 <p className="text-sm text-slate-500">
@@ -327,9 +337,18 @@ export default function WastePage() {
                   {new Date(entry.declaredAt).toLocaleDateString('fr-FR')}
                 </p>
               </div>
-              <p className="shrink-0 text-sm font-medium text-red-600">
-                −{formatEuros(Number(entry.estimatedValue))} €
-              </p>
+              <div className="shrink-0 flex items-center gap-2">
+                <p className="text-sm font-medium text-red-600 whitespace-nowrap">
+                  −{formatEuros(Number(entry.estimatedValue))} €
+                </p>
+                <button
+                  onClick={() => handleDelete(entry.id)}
+                  aria-label="Supprimer cette déclaration"
+                  className="min-h-[44px] px-3 rounded-lg border border-red-200 text-red-600 text-sm font-medium"
+                >
+                  Supprimer
+                </button>
+              </div>
             </li>
           ))}
           {!isLoading && entries.length === 0 && <p className="text-slate-500">Aucune perte déclarée.</p>}

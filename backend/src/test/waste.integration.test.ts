@@ -167,6 +167,45 @@ describe('Gaspillage — déclaration, valorisation, statistiques', () => {
     expect(dashboardRes.body.kpis.wasteThisMonth).toBe(15);
   });
 
+  it('supprime une déclaration de perte erronée (double-saisie, mauvais produit)', async () => {
+    const restaurant = await bootstrapRestaurant('J');
+    const { productId } = await setupSupplierAndProduct(restaurant.accessToken, 'Boucherie', 20);
+
+    const createRes = await request(app)
+      .post('/api/waste')
+      .set('Authorization', `Bearer ${restaurant.accessToken}`)
+      .send({ productId, quantity: 2, reason: 'PERIME' });
+    const wasteEntryId = createRes.body.wasteEntry.id as string;
+
+    const deleteRes = await request(app)
+      .delete(`/api/waste/${wasteEntryId}`)
+      .set('Authorization', `Bearer ${restaurant.accessToken}`);
+    expect(deleteRes.status).toBe(204);
+
+    const listRes = await request(app).get('/api/waste').set('Authorization', `Bearer ${restaurant.accessToken}`);
+    expect(listRes.body.wasteEntries).toHaveLength(0);
+  });
+
+  it("isolation multi-tenant : impossible de supprimer une déclaration d'un autre restaurant", async () => {
+    const restaurantA = await bootstrapRestaurant('K');
+    const restaurantB = await bootstrapRestaurant('L');
+    const { productId } = await setupSupplierAndProduct(restaurantA.accessToken, 'Boucherie', 10);
+
+    const createRes = await request(app)
+      .post('/api/waste')
+      .set('Authorization', `Bearer ${restaurantA.accessToken}`)
+      .send({ productId, quantity: 1, reason: 'PERIME' });
+    const wasteEntryId = createRes.body.wasteEntry.id as string;
+
+    const deleteRes = await request(app)
+      .delete(`/api/waste/${wasteEntryId}`)
+      .set('Authorization', `Bearer ${restaurantB.accessToken}`);
+    expect(deleteRes.status).toBe(404);
+
+    const stillExists = await prisma.wasteEntry.findUnique({ where: { id: wasteEntryId } });
+    expect(stillExists).not.toBeNull();
+  });
+
   it("isolation multi-tenant : un restaurant ne voit pas les pertes d'un autre", async () => {
     const restaurantA = await bootstrapRestaurant('G');
     const restaurantB = await bootstrapRestaurant('H');

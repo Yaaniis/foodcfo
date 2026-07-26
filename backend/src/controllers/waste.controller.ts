@@ -85,6 +85,23 @@ export async function listWasteEntries(req: Request, res: Response) {
   res.json({ wasteEntries: entries });
 }
 
+// Pas de modification (PATCH) : `estimatedValue` est calculé, pas
+// saisi — corriger une quantité nécessiterait de revaloriser au prix
+// du moment, ce qui n'est pas forcément le prix auquel la perte a
+// réellement eu lieu. Annuler une déclaration erronée (mauvais produit,
+// doublon) et en recréer une correcte reste plus simple et plus fiable.
+export async function deleteWasteEntry(req: Request, res: Response) {
+  const existing = await prisma.wasteEntry.findFirst({
+    where: { id: req.params.id, restaurantId: req.user!.restaurantId },
+  });
+  if (!existing) {
+    return res.status(404).json({ error: 'NOT_FOUND', message: 'Déclaration de perte introuvable.' });
+  }
+
+  await prisma.wasteEntry.delete({ where: { id: existing.id } });
+  res.status(204).send();
+}
+
 // "Catégorie" d'une perte : la catégorie du fournisseur pour un produit
 // brut (ex: "Boucherie"), la catégorie du plat pour un produit fini
 // (ex: "Desserts") — ce sont les deux seuls champs de catégorie qui
