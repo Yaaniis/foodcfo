@@ -11,6 +11,7 @@ import {
 import { requireAuth } from '../middleware/auth';
 import { requireRole } from '../middleware/requireRole';
 import { asyncHandler } from '../utils/asyncHandler';
+import { orderSendRateLimiter } from '../middleware/rateLimit';
 
 export const orderRouter = Router();
 orderRouter.use(requireAuth);
@@ -24,5 +25,5 @@ orderRouter.get('/suggestions', asyncHandler(getOrderSuggestions));
 orderRouter.post('/from-cart', asyncHandler(createOrdersFromCart));
 orderRouter.get('/:id', asyncHandler(getOrder));
 orderRouter.patch('/:id/lines', asyncHandler(updateOrderLines));
-orderRouter.post('/:id/send', asyncHandler(sendOrder));
+orderRouter.post('/:id/send', orderSendRateLimiter, asyncHandler(sendOrder));
 orderRouter.patch('/:id/status', asyncHandler(updateOrderStatus));

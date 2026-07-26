@@ -14,6 +14,7 @@ import {
 import { requireAuth } from '../middleware/auth';
 import { requireRole } from '../middleware/requireRole';
 import { asyncHandler } from '../utils/asyncHandler';
+import { invoiceUploadRateLimiter } from '../middleware/rateLimit';
 
 // Stockage en mémoire (pas sur disque via multer) : on veut d'abord
 // vérifier le type réel du fichier (magic bytes, voir lib/fileType.ts)
@@ -29,7 +30,7 @@ invoiceRouter.use(requireAuth);
 invoiceRouter.use(requireRole('GERANT', 'CUISINE'));
 
 invoiceRouter.get('/', asyncHandler(listInvoices));
-invoiceRouter.post('/', upload.single('file'), asyncHandler(uploadInvoice));
+invoiceRouter.post('/', invoiceUploadRateLimiter, upload.single('file'), asyncHandler(uploadInvoice));
 invoiceRouter.get('/:id', asyncHandler(getInvoice));
 invoiceRouter.get('/:id/file', asyncHandler(getInvoiceFile));
 invoiceRouter.patch('/:id', asyncHandler(patchInvoice));

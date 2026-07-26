@@ -3,10 +3,11 @@ import { getMonthlyReportPreview, sendMonthlyReport } from '../controllers/repor
 import { requireAuth } from '../middleware/auth';
 import { requireRole } from '../middleware/requireRole';
 import { asyncHandler } from '../utils/asyncHandler';
+import { reportSendRateLimiter } from '../middleware/rateLimit';
 
 export const reportRouter = Router();
 reportRouter.use(requireAuth);
 reportRouter.use(requireRole('GERANT'));
 
 reportRouter.get('/monthly/preview', asyncHandler(getMonthlyReportPreview));
-reportRouter.post('/monthly/send', asyncHandler(sendMonthlyReport));
+reportRouter.post('/monthly/send', reportSendRateLimiter, asyncHandler(sendMonthlyReport));
