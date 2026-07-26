@@ -2,36 +2,35 @@ import type { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { logger } from '../lib/logger';
 import { getRestaurantThresholds } from '../lib/restaurantThresholds';
+import { monthRangeInTimezone } from '../lib/timezone';
 import { computeMenuItemMargin } from './menuItem.controller';
 import { potentialSavingToReachGreen } from '../lib/margin';
 import { buildMonthlyReportEmail, type MonthlyReportData } from '../lib/monthlyReport';
 import { sendEmail, EmailError } from '../lib/email';
 
-// `referenceDate` détermine quel mois est rapporté : le mois qui le
-// contient. Le déclenchement manuel ("aperçu"/"envoyer maintenant")
-// utilise le mois en cours par défaut (utile en cours de mois). Le job
-// planifié (voir lib/monthlyReportScheduler.ts), lui, passe une date
-// dans le mois précédent pour recevoir un vrai récapitulatif du mois
-// qui vient de se terminer, pas un rapport vide du mois qui commence.
-function monthRangeContaining(referenceDate: Date): { monthStart: Date; monthEnd: Date; monthLabel: string } {
-  const monthStart = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), 1);
-  const monthEnd = new Date(referenceDate.getFullYear(), referenceDate.getMonth() + 1, 1);
-  const monthLabel = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, '0')}`;
-  return { monthStart, monthEnd, monthLabel };
-}
-
 // Rassemble les mêmes données que le tableau de bord (Phase 2) et les
 // statistiques de gaspillage (Phase 5), plus les achats fournisseurs du
 // mois — c'est littéralement le même calcul que ces deux endpoints,
 // reformaté en rapport de synthèse plutôt qu'en JSON pour écran.
+//
+// `referenceDate` détermine quel mois est rapporté : le mois qui le
+// contient, dans le fuseau horaire du restaurant (pas celui du
+// serveur). Le déclenchement manuel ("aperçu"/"envoyer maintenant")
+// utilise le mois en cours par défaut (utile en cours de mois). Le job
+// planifié (voir lib/monthlyReportScheduler.ts), lui, passe une date
+// dans le mois précédent pour recevoir un vrai récapitulatif du mois
+// qui vient de se terminer, pas un rapport vide du mois qui commence.
 export async function gatherMonthlyReportData(
   restaurantId: string,
   referenceDate: Date = new Date(),
 ): Promise<MonthlyReportData> {
-  const { monthStart, monthEnd, monthLabel } = monthRangeContaining(referenceDate);
+  const restaurant = await prisma.restaurant.findUniqueOrThrow({
+    where: { id: restaurantId },
+    select: { name: true, timezone: true },
+  });
+  const { monthStart, monthEnd, monthLabel } = monthRangeInTimezone(referenceDate, restaurant.timezone);
 
-  const [restaurant, menuItems, thresholds, wasteAggregate, invoiceAggregate] = await Promise.all([
-    prisma.restaurant.findUniqueOrThrow({ where: { id: restaurantId }, select: { name: true } }),
+  const [menuItems, thresholds, wasteAggregate, invoiceAggregate] = await Promise.all([
     prisma.menuItem.findMany({
       where: { restaurantId, isActive: true },
       include: { recipe: { include: { ingredients: { include: { product: true } } } } },

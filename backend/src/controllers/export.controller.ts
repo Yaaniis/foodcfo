@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { toCsv } from '../lib/csv';
 import { invoiceExportQuerySchema } from '../schemas/export.schemas';
+import { monthRangeInTimezone } from '../lib/timezone';
 
 const UNIT_LABELS: Record<string, string> = { KG: 'kg', G: 'g', L: 'L', ML: 'mL', UNITE: 'unité' };
 
@@ -12,9 +13,18 @@ const UNIT_LABELS: Record<string, string> = { KG: 'kg', G: 'g', L: 'L', ML: 'mL'
 // comptabilité.
 export async function exportInvoicesCsv(req: Request, res: Response) {
   const query = invoiceExportQuerySchema.parse(req.query);
-  const now = new Date();
-  const from = query.from ?? new Date(now.getFullYear(), now.getMonth(), 1);
-  const to = query.to ?? new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+  let from = query.from;
+  let to = query.to;
+  if (!from || !to) {
+    const restaurant = await prisma.restaurant.findUniqueOrThrow({
+      where: { id: req.user!.restaurantId },
+      select: { timezone: true },
+    });
+    const currentMonth = monthRangeInTimezone(new Date(), restaurant.timezone);
+    from = from ?? currentMonth.monthStart;
+    to = to ?? currentMonth.monthEnd;
+  }
 
   const invoices = await prisma.invoice.findMany({
     where: {

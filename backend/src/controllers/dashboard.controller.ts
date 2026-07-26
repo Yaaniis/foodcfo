@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { potentialSavingToReachGreen } from '../lib/margin';
 import { getRestaurantThresholds } from '../lib/restaurantThresholds';
+import { monthRangeInTimezone } from '../lib/timezone';
 import { computeMenuItemMargin } from './menuItem.controller';
 
 export interface DashboardKpis {
@@ -24,9 +25,11 @@ export interface DashboardKpis {
 // marge calculable, il est compté à part pour inciter à compléter la
 // fiche plutôt que d'être ignoré silencieusement.
 export async function gatherDashboardData(restaurantId: string) {
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const restaurant = await prisma.restaurant.findUniqueOrThrow({
+    where: { id: restaurantId },
+    select: { timezone: true },
+  });
+  const { monthStart, monthEnd } = monthRangeInTimezone(new Date(), restaurant.timezone);
 
   const [menuItems, thresholds, wasteAggregate] = await Promise.all([
     prisma.menuItem.findMany({

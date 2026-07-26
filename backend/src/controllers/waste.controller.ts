@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { computeIngredientsCostHT } from '../lib/margin';
 import { createWasteEntrySchema } from '../schemas/waste.schemas';
+import { monthRangeInTimezone } from '../lib/timezone';
 
 const WASTE_ENTRY_INCLUDE = {
   product: { select: { id: true, name: true, unit: true, supplier: { select: { category: true } } } },
@@ -89,9 +90,11 @@ export async function listWasteEntries(req: Request, res: Response) {
 // (ex: "Desserts") — ce sont les deux seuls champs de catégorie qui
 // existent réellement dans le modèle de données.
 export async function getWasteStats(req: Request, res: Response) {
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const restaurant = await prisma.restaurant.findUniqueOrThrow({
+    where: { id: req.user!.restaurantId },
+    select: { timezone: true },
+  });
+  const { monthStart, monthEnd, monthLabel } = monthRangeInTimezone(new Date(), restaurant.timezone);
 
   const entries = await prisma.wasteEntry.findMany({
     where: { restaurantId: req.user!.restaurantId, declaredAt: { gte: monthStart, lt: monthEnd } },
@@ -112,7 +115,7 @@ export async function getWasteStats(req: Request, res: Response) {
   }
 
   res.json({
-    month: `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, '0')}`,
+    month: monthLabel,
     entryCount: entries.length,
     totalValue,
     byReason,
