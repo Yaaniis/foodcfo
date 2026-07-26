@@ -6,9 +6,27 @@
 import type { ErrorRequestHandler } from 'express';
 import { ZodError } from 'zod';
 import { Prisma } from '@prisma/client';
+import { MulterError } from 'multer';
 import { logger } from '../lib/logger';
 
 export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
+  // Erreur Multer (upload de facture) : un fichier trop volumineux
+  // lève cette erreur de façon synchrone, avant même d'atteindre le
+  // contrôleur — sans ce cas, elle tombait dans le bloc générique
+  // "erreur interne" (500, message opaque), alors que c'est une entrée
+  // utilisateur invalide comme une autre (400).
+  if (err instanceof MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      res.status(400).json({
+        error: 'FILE_TOO_LARGE',
+        message: 'Le fichier dépasse la taille maximale autorisée (15 Mo).',
+      });
+      return;
+    }
+    res.status(400).json({ error: 'UPLOAD_ERROR', message: "Échec de l'envoi du fichier." });
+    return;
+  }
+
   // Erreur de validation Zod (corps de requête invalide)
   if (err instanceof ZodError) {
     res.status(400).json({

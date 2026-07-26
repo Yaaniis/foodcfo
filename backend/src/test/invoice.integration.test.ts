@@ -58,6 +58,18 @@ describe('Factures — upload, repli manuel, validation', () => {
     expect(res.body.error).toBe('INVALID_FILE_TYPE');
   });
 
+  it('rejette un fichier trop volumineux avec un message clair (400), pas une erreur générique (500)', async () => {
+    const restaurant = await bootstrapRestaurant('A2');
+    const oversized = Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(16 * 1024 * 1024, 'a')]);
+    const res = await request(app)
+      .post('/api/invoices')
+      .set('Authorization', `Bearer ${restaurant.accessToken}`)
+      .attach('file', oversized, 'grosse-facture.pdf');
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('FILE_TOO_LARGE');
+  });
+
   it("accepte un PDF valide, bascule en statut ERROR faute de clé API réelle, et permet la saisie manuelle jusqu'à validation", async () => {
     const restaurant = await bootstrapRestaurant('B');
     const { supplierId, productId } = await setupSupplierAndProduct(restaurant.accessToken, 20);
