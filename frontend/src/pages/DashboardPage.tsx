@@ -108,12 +108,20 @@ export default function DashboardPage() {
               </p>
             )}
           </div>
-          <button
-            onClick={() => logout()}
-            className="min-h-[44px] px-4 rounded-lg border border-slate-300 text-slate-700 font-medium"
-          >
-            Déconnexion
-          </button>
+          <div className="flex gap-2">
+            <Link
+              to="/account"
+              className="min-h-[44px] px-4 rounded-lg border border-slate-300 text-slate-700 font-medium flex items-center"
+            >
+              Mon compte
+            </Link>
+            <button
+              onClick={() => logout()}
+              className="min-h-[44px] px-4 rounded-lg border border-slate-300 text-slate-700 font-medium"
+            >
+              Déconnexion
+            </button>
+          </div>
         </div>
 
         <RestaurantSwitcher />

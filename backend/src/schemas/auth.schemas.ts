@@ -23,7 +23,13 @@ export const resetPasswordSchema = z.object({
   newPassword: z.string().min(8, '8 caractères minimum.'),
 });
 
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Mot de passe actuel requis.'),
+  newPassword: z.string().min(8, '8 caractères minimum.'),
+});
+
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RefreshInput = z.infer<typeof refreshSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;

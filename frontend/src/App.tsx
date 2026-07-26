@@ -8,6 +8,7 @@ import OnboardingPage from './pages/OnboardingPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import DashboardPage from './pages/DashboardPage';
+import AccountPage from './pages/AccountPage';
 import TeamPage from './pages/TeamPage';
 import MenuPage from './pages/MenuPage';
 import RecipePage from './pages/RecipePage';
@@ -42,6 +43,7 @@ function App() {
 
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<DashboardPage />} />
+            <Route path="/account" element={<AccountPage />} />
 
             <Route element={<GerantRoute />}>
               <Route path="/team" element={<TeamPage />} />

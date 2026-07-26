@@ -139,4 +139,84 @@ describe('Mot de passe oublié / réinitialisation', () => {
     expect(loginRes.body.requiresRestaurantSelection).toBe(true);
     expect(loginRes.body.restaurants).toHaveLength(2);
   });
+
+  describe('Changement de mot de passe (utilisateur déjà connecté)', () => {
+    it('change le mot de passe avec le mot de passe actuel correct, révoque les sessions existantes', async () => {
+      const email = `reset-${suffix}-e@test-foodcfo.local`;
+      const restaurant = await bootstrapRestaurant('E', email);
+
+      const changeRes = await request(app)
+        .patch('/api/auth/password')
+        .set('Authorization', `Bearer ${restaurant.accessToken}`)
+        .send({ currentPassword: 'MotDePasseInitial123!', newPassword: 'NouveauMotDePasseE456!' });
+      expect(changeRes.status).toBe(204);
+
+      const oldLoginRes = await request(app)
+        .post('/api/auth/login')
+        .send({ email, password: 'MotDePasseInitial123!' });
+      expect(oldLoginRes.status).toBe(401);
+
+      const newLoginRes = await request(app)
+        .post('/api/auth/login')
+        .send({ email, password: 'NouveauMotDePasseE456!' });
+      expect(newLoginRes.status).toBe(200);
+
+      // La session ouverte avant le changement doit être coupée, comme resetPassword.
+      const refreshRes = await request(app)
+        .post('/api/auth/refresh')
+        .send({ refreshToken: restaurant.refreshToken });
+      expect(refreshRes.status).toBe(401);
+    });
+
+    it('refuse un mot de passe actuel incorrect, sans rien changer', async () => {
+      const email = `reset-${suffix}-f@test-foodcfo.local`;
+      const restaurant = await bootstrapRestaurant('F', email);
+
+      const res = await request(app)
+        .patch('/api/auth/password')
+        .set('Authorization', `Bearer ${restaurant.accessToken}`)
+        .send({ currentPassword: 'MauvaisMotDePasse!', newPassword: 'NouveauMotDePasseF456!' });
+
+      // 400, pas 401 : un 401 sur une route déjà authentifiée serait
+      // interprété par le client comme "session expirée" (voir
+      // auth.controller.ts).
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('INVALID_CURRENT_PASSWORD');
+
+      const stillOldRes = await request(app)
+        .post('/api/auth/login')
+        .send({ email, password: 'MotDePasseInitial123!' });
+      expect(stillOldRes.status).toBe(200);
+    });
+
+    it('refuse la requête sans authentification', async () => {
+      const res = await request(app)
+        .patch('/api/auth/password')
+        .send({ currentPassword: 'PeuImporte123!', newPassword: 'AutrePeuImporte456!' });
+      expect(res.status).toBe(401);
+    });
+
+    it('synchronise le changement sur tous les restaurants d’un compte multi-établissement', async () => {
+      const email = `reset-${suffix}-g@test-foodcfo.local`;
+      const first = await bootstrapRestaurant('G1', email);
+
+      await request(app)
+        .post('/api/restaurants/add')
+        .set('Authorization', `Bearer ${first.accessToken}`)
+        .send({ restaurantName: `Restaurant reset G2 ${suffix}` });
+
+      const changeRes = await request(app)
+        .patch('/api/auth/password')
+        .set('Authorization', `Bearer ${first.accessToken}`)
+        .send({ currentPassword: 'MotDePasseInitial123!', newPassword: 'MotDePartageNeufG123!' });
+      expect(changeRes.status).toBe(204);
+
+      const loginRes = await request(app)
+        .post('/api/auth/login')
+        .send({ email, password: 'MotDePartageNeufG123!' });
+      expect(loginRes.status).toBe(200);
+      expect(loginRes.body.requiresRestaurantSelection).toBe(true);
+      expect(loginRes.body.restaurants).toHaveLength(2);
+    });
+  });
 });

@@ -11,7 +11,13 @@ import { prisma } from '../lib/prisma';
 import { logger } from '../lib/logger';
 import { verifyPassword, hashPassword } from '../utils/password';
 import { signAccessToken, signRefreshToken, verifyRefreshToken, hashToken, expiryDateFromDuration } from '../utils/tokens';
-import { loginSchema, refreshSchema, forgotPasswordSchema, resetPasswordSchema } from '../schemas/auth.schemas';
+import {
+  loginSchema,
+  refreshSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+  changePasswordSchema,
+} from '../schemas/auth.schemas';
 import { env } from '../config/env';
 import { sendEmail, EmailError } from '../lib/email';
 import { createPasswordResetToken } from '../lib/passwordReset';
@@ -204,6 +210,46 @@ export async function resetPassword(req: Request, res: Response) {
   ]);
 
   logger.info({ email: resetToken.email }, 'Mot de passe réinitialisé');
+
+  return res.status(204).send();
+}
+
+// Changement de mot de passe pour un utilisateur déjà connecté (menu
+// "Mon compte"), distinct de resetPassword (flux "mot de passe
+// oublié", sans être connecté). Révoque toutes les sessions existantes
+// comme resetPassword — y compris celle en cours : l'access token
+// reste valide jusqu'à expiration (15 min), mais tout refresh échouera,
+// forçant une reconnexion avec le nouveau mot de passe.
+export async function changePassword(req: Request, res: Response) {
+  const { currentPassword, newPassword } = changePasswordSchema.parse(req.body);
+
+  const currentUser = await prisma.user.findUniqueOrThrow({ where: { id: req.user!.id } });
+
+  const isValid = await verifyPassword(currentUser.passwordHash, currentPassword);
+  if (!isValid) {
+    // 400, pas 401 : cette route est déjà authentifiée (requireAuth) —
+    // un 401 ici serait interprété par authFetch comme "session
+    // expirée" et déclencherait une déconnexion automatique côté
+    // client au lieu d'afficher l'erreur dans le formulaire (constaté
+    // en testant dans le navigateur avant ce correctif).
+    return res.status(400).json({ error: 'INVALID_CURRENT_PASSWORD', message: 'Mot de passe actuel incorrect.' });
+  }
+
+  const passwordHash = await hashPassword(newPassword);
+
+  // Même principe que resetPassword : toutes les lignes User partageant
+  // cet email (compte multi-restaurant) doivent rester synchronisées.
+  const users = await prisma.user.findMany({ where: { email: currentUser.email } });
+
+  await prisma.$transaction([
+    prisma.user.updateMany({ where: { email: currentUser.email }, data: { passwordHash } }),
+    prisma.refreshToken.updateMany({
+      where: { userId: { in: users.map((u) => u.id) }, revokedAt: null },
+      data: { revokedAt: new Date() },
+    }),
+  ]);
+
+  logger.info({ userId: currentUser.id }, 'Mot de passe changé par l’utilisateur');
 
   return res.status(204).send();
 }

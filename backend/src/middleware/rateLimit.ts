@@ -106,3 +106,17 @@ export const reportSendRateLimiter = rateLimit({
   keyGenerator: keyByRestaurant,
   message: { error: 'TOO_MANY_ATTEMPTS', message: 'Trop de rapports envoyés récemment. Réessayez plus tard.' },
 });
+
+// Changement de mot de passe (utilisateur déjà connecté) : protège
+// contre un attaquant en possession d'un access token volé qui
+// tenterait de deviner le mot de passe actuel par force brute (requis
+// avant d'accepter le nouveau).
+export const changePasswordRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipInTests,
+  keyGenerator: keyByRestaurant,
+  message: { error: 'TOO_MANY_ATTEMPTS', message: 'Trop de tentatives. Réessayez plus tard.' },
+});
