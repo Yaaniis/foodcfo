@@ -414,11 +414,19 @@ export async function switchRestaurant(req: Request, res: Response) {
 // résultat plus juste, mais demanderait de sortir les plats bruts par
 // restaurant ; la moyenne simple est un compromis assumé et documenté,
 // ajustable si besoin plus tard.
+//
+// Le filtre sur passwordHash (pas seulement l'email) est requis pour la
+// même raison que listMyRestaurants/switchRestaurant (voir le
+// commentaire détaillé sur listMyRestaurants) : l'email n'est unique
+// que par restaurant, donc un restaurant tiers sans aucun rapport
+// pourrait sinon voir ses données financières (marge, économies
+// potentielles, alertes) agrégées dans la vue consolidée d'un compte
+// qui n'y a jamais eu accès.
 export async function getConsolidatedDashboard(req: Request, res: Response) {
   const currentUser = await prisma.user.findUniqueOrThrow({ where: { id: req.user!.id } });
 
   const memberships = await prisma.user.findMany({
-    where: { email: currentUser.email, isActive: true },
+    where: { email: currentUser.email, passwordHash: currentUser.passwordHash, isActive: true },
     select: { restaurantId: true, restaurant: { select: { id: true, name: true } } },
     orderBy: { createdAt: 'asc' },
   });

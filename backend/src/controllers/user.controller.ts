@@ -33,14 +33,22 @@ export async function listUsers(req: Request, res: Response) {
 export async function createUser(req: Request, res: Response) {
   const input = createUserSchema.parse(req.body);
 
-  const existing = await prisma.user.findFirst({
-    where: { restaurantId: req.user!.restaurantId, email: input.email },
-  });
+  // Vérifié tous restaurants confondus (pas seulement celui de
+  // l'appelant), comme bootstrap — cohérent avec la recherche par
+  // email seul utilisée au login. Sans ça, n'importe quel Gérant
+  // pourrait créer une ligne User avec l'email de quelqu'un d'autre,
+  // avec un mot de passe de son choix : l'email n'est unique que par
+  // restaurant (schema.prisma), donc rien d'autre n'empêchait cette
+  // collision — exploitée pour prendre le contrôle de comptes tiers
+  // via switchRestaurant/changePassword/la vue consolidée avant leur
+  // correctif respectif (voir journal, suites 38-39).
+  const existing = await prisma.user.findFirst({ where: { email: input.email } });
   if (existing) {
-    return res.status(409).json({
-      error: 'EMAIL_TAKEN',
-      message: 'Un utilisateur avec cet email existe déjà dans ce restaurant.',
-    });
+    const message =
+      existing.restaurantId === req.user!.restaurantId
+        ? 'Un utilisateur avec cet email existe déjà dans ce restaurant.'
+        : 'Cette adresse email est déjà utilisée par un autre compte FoodCFO.';
+    return res.status(409).json({ error: 'EMAIL_TAKEN', message });
   }
 
   const passwordHash = await hashPassword(input.password);

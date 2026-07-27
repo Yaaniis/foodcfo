@@ -4,6 +4,7 @@ import { app } from '../app';
 import { prisma } from '../lib/prisma';
 import { createPasswordResetToken } from '../lib/passwordReset';
 import { hashToken } from '../utils/tokens';
+import { hashPassword } from '../utils/password';
 
 // L'environnement de test n'a pas de vraie clé RESEND_API_KEY : l'email
 // de réinitialisation ne part donc jamais réellement (même situation que
@@ -219,28 +220,29 @@ describe('Mot de passe oublié / réinitialisation', () => {
       expect(loginRes.body.restaurants).toHaveLength(2);
     });
 
-    it("sécurité critique : changer son propre mot de passe ne doit JAMAIS écraser celui d'un compte tiers partageant le même email par collision (pas par lien réel)", async () => {
+    it("sécurité critique (défense en profondeur) : changer son propre mot de passe ne doit JAMAIS écraser celui d'un compte tiers partageant le même email par collision (pas par lien réel)", async () => {
       // La "victime" a son propre restaurant, son propre mot de passe —
       // aucun rapport avec l'attaquant.
       const victimEmail = `reset-${suffix}-victime@test-foodcfo.local`;
       await bootstrapRestaurant('Victime', victimEmail);
 
-      // L'attaquant crée son propre restaurant, puis "invite" un membre
-      // d'équipe en réutilisant l'email de la victime, avec un mot de
-      // passe de son choix (createUser ne vérifie l'unicité de l'email
-      // que dans le restaurant de l'appelant, pas globalement).
+      // createUser bloque désormais la création d'une telle collision
+      // via l'API (voir multiRestaurant.integration.test.ts) — la
+      // collision est créée ici directement en base, en contournant
+      // l'API, pour vérifier que changePassword reste sûr même dans
+      // l'hypothèse où une collision existerait malgré tout (données
+      // historiques antérieures à ce correctif).
       const attackerBootstrap = await bootstrapRestaurant('Attaquant2', `reset-${suffix}-attaquant2@test-foodcfo.local`);
-      const inviteRes = await request(app)
-        .post('/api/users')
-        .set('Authorization', `Bearer ${attackerBootstrap.accessToken}`)
-        .send({
+      await prisma.user.create({
+        data: {
+          restaurantId: attackerBootstrap.user.restaurantId,
           email: victimEmail,
-          password: 'MotDePasseAttaquant789!',
+          passwordHash: await hashPassword('MotDePasseAttaquant789!'),
+          role: 'GERANT',
           firstName: 'Faux',
           lastName: 'Compte',
-          role: 'GERANT',
-        });
-      expect(inviteRes.status).toBe(201);
+        },
+      });
 
       const attackerLoginRes = await request(app)
         .post('/api/auth/login')

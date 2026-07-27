@@ -2,6 +2,7 @@ import { describe, it, expect, afterAll } from 'vitest';
 import request from 'supertest';
 import { app } from '../app';
 import { prisma } from '../lib/prisma';
+import { hashPassword } from '../utils/password';
 
 // Couvre le chantier "vue consolidée multi-restaurants" (Phase 6+,
 // initialement reporté, repris sur demande explicite le 25/07/2026) :
@@ -219,20 +220,11 @@ describe('Multi-restaurant — ajout, connexion, switch, vue consolidée', () =>
     expect(consolidatedRes.status).toBe(403);
   });
 
-  it("sécurité critique : une collision d'email (sans lien réel entre les comptes) ne permet PAS de prendre le contrôle d'un autre restaurant via switch", async () => {
-    // La "victime" a son propre restaurant, avec son propre mot de
-    // passe — aucun rapport avec l'attaquant.
-    const victimEmail = `victime-${suffix}@test-foodcfo.local`;
-    const victim = await bootstrapRestaurant('Victime', victimEmail);
+  it("sécurité : createUser refuse d'inviter un email déjà utilisé sur un AUTRE restaurant (empêche la collision à la source)", async () => {
+    const victimEmail = `victime-createuser-${suffix}@test-foodcfo.local`;
+    await bootstrapRestaurant('VictimeCreateUser', victimEmail);
 
-    // L'attaquant crée son propre restaurant, puis "invite" un membre
-    // d'équipe en réutilisant l'email de la victime avec un mot de
-    // passe de son choix — createUser ne vérifie l'unicité de l'email
-    // que dans le restaurant de l'appelant (pas globalement), donc
-    // rien ne bloque cette création : ce compte partage l'email de la
-    // victime mais a un hash de mot de passe totalement différent
-    // (jamais copié depuis elle).
-    const attacker = await bootstrapRestaurant('Attaquant');
+    const attacker = await bootstrapRestaurant('AttaquantCreateUser');
     const inviteRes = await request(app)
       .post('/api/users')
       .set('Authorization', `Bearer ${attacker.accessToken}`)
@@ -243,7 +235,34 @@ describe('Multi-restaurant — ajout, connexion, switch, vue consolidée', () =>
         lastName: 'Compte',
         role: 'GERANT',
       });
-    expect(inviteRes.status).toBe(201);
+    expect(inviteRes.status).toBe(409);
+    expect(inviteRes.body.error).toBe('EMAIL_TAKEN');
+  });
+
+  it("sécurité critique (défense en profondeur) : même si une collision d'email existait déjà en base (sans lien réel entre les comptes), elle ne permettrait PAS de prendre le contrôle d'un autre restaurant via switch, ni de le voir dans /mine ou la vue consolidée", async () => {
+    // La "victime" a son propre restaurant, avec son propre mot de
+    // passe — aucun rapport avec l'attaquant.
+    const victimEmail = `victime-${suffix}@test-foodcfo.local`;
+    const victim = await bootstrapRestaurant('Victime', victimEmail);
+
+    // createUser bloque désormais cette collision à la création (voir
+    // le test précédent) — pour vérifier que switchRestaurant/
+    // listMyRestaurants/getConsolidatedDashboard restent sûrs même
+    // dans l'hypothèse où une collision existerait malgré tout (données
+    // historiques antérieures à ce correctif, ou tout autre chemin non
+    // encore identifié), la collision est créée ici directement en
+    // base, en contournant l'API.
+    const attacker = await bootstrapRestaurant('Attaquant');
+    await prisma.user.create({
+      data: {
+        restaurantId: attacker.user.restaurantId,
+        email: victimEmail,
+        passwordHash: await hashPassword('MotDePasseAttaquant456!'),
+        role: 'GERANT',
+        firstName: 'Faux',
+        lastName: 'Compte',
+      },
+    });
 
     // L'attaquant se connecte avec CE compte fictif, avec SON propre
     // mot de passe (login reste sûr : il ne matche jamais le hash de
@@ -271,6 +290,17 @@ describe('Multi-restaurant — ajout, connexion, switch, vue consolidée', () =>
     const restaurantIds = mineRes.body.restaurants.map((r: { id: string }) => r.id);
     expect(restaurantIds).not.toContain(victim.user.restaurantId);
     expect(restaurantIds).toEqual([attacker.user.restaurantId]);
+
+    // Même protection sur la vue consolidée : les données financières
+    // (marge, KPIs) du restaurant de la victime ne doivent jamais être
+    // agrégées dans la réponse de l'attaquant.
+    const consolidatedRes = await request(app)
+      .get('/api/restaurants/consolidated')
+      .set('Authorization', `Bearer ${attackerLoginRes.body.accessToken}`);
+    expect(consolidatedRes.status).toBe(200);
+    expect(consolidatedRes.body.totals.restaurantCount).toBe(1);
+    const consolidatedIds = consolidatedRes.body.restaurants.map((r: { restaurantId: string }) => r.restaurantId);
+    expect(consolidatedIds).not.toContain(victim.user.restaurantId);
   });
 
   it("isolation : les plats d'un restaurant du compte ne fuient pas dans l'autre restaurant du même compte", async () => {
