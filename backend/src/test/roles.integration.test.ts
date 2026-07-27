@@ -77,6 +77,81 @@ describe('Permissions par rôle', () => {
     expect(res.status).toBe(200);
   });
 
+  it('la marge et la fiche technique (prix d\'achat des ingrédients) sont masquées pour un compte Service, mais visibles pour Gérant/Cuisine', async () => {
+    const [serviceToken, gerantToken] = await Promise.all([loginAs('SERVICE'), loginAs('GERANT')]);
+
+    const serviceRes = await request(app).get('/api/menu-items').set('Authorization', `Bearer ${serviceToken}`);
+    expect(serviceRes.status).toBe(200);
+    expect(serviceRes.body.menuItems.length).toBeGreaterThan(0);
+    expect(serviceRes.body.menuItems.every((item: { margin: unknown }) => item.margin === null)).toBe(true);
+    // La fiche technique porte le prix d'achat de chaque ingrédient
+    // (Product.currentPriceHT) : la masquer complètement pour Service
+    // évite de pouvoir recalculer la marge à la main à partir de ces
+    // prix, alors même que le champ `margin` calculé est déjà masqué.
+    expect(serviceRes.body.menuItems.every((item: { recipe: unknown }) => item.recipe === null)).toBe(true);
+
+    const gerantRes = await request(app).get('/api/menu-items').set('Authorization', `Bearer ${gerantToken}`);
+    expect(gerantRes.status).toBe(200);
+    expect(gerantRes.body.menuItems.some((item: { margin: unknown }) => item.margin !== null)).toBe(true);
+    expect(gerantRes.body.menuItems.some((item: { recipe: unknown }) => item.recipe !== null)).toBe(true);
+  });
+
+  it('le tableau de bord masque les KPIs de marge (donnée financière interne) pour un compte Service, mais pas pour Gérant', async () => {
+    const [serviceToken, gerantToken] = await Promise.all([loginAs('SERVICE'), loginAs('GERANT')]);
+
+    const serviceRes = await request(app).get('/api/dashboard').set('Authorization', `Bearer ${serviceToken}`);
+    expect(serviceRes.status).toBe(200);
+    expect(serviceRes.body.kpis).toBeNull();
+    expect(serviceRes.body.menuItems).toEqual([]);
+
+    const gerantRes = await request(app).get('/api/dashboard').set('Authorization', `Bearer ${gerantToken}`);
+    expect(gerantRes.status).toBe(200);
+    expect(gerantRes.body.kpis).not.toBeNull();
+    expect(gerantRes.body.menuItems.length).toBeGreaterThan(0);
+  });
+
+  it('un compte Cuisine gère la fiche technique mais ne peut PAS modifier le prix de vente ou la TVA (décision 0.5)', async () => {
+    const gerantToken = await loginAs('GERANT');
+    const createRes = await request(app)
+      .post('/api/menu-items')
+      .set('Authorization', `Bearer ${gerantToken}`)
+      .send({ name: `Test tarification ${Date.now()}`, category: 'Plats', sellingPriceTTC: 15, vatRate: 'TAUX_10' });
+    const menuItemId = createRes.body.menuItem.id as string;
+
+    const cuisineToken = await loginAs('CUISINE');
+
+    // Le nom, lui, reste modifiable par Cuisine (fiche technique).
+    const nameRes = await request(app)
+      .patch(`/api/menu-items/${menuItemId}`)
+      .set('Authorization', `Bearer ${cuisineToken}`)
+      .send({ name: 'Renommé par Cuisine' });
+    expect(nameRes.status).toBe(200);
+
+    const priceRes = await request(app)
+      .patch(`/api/menu-items/${menuItemId}`)
+      .set('Authorization', `Bearer ${cuisineToken}`)
+      .send({ sellingPriceTTC: 25 });
+    expect(priceRes.status).toBe(403);
+    expect(priceRes.body.error).toBe('FORBIDDEN');
+
+    const vatRes = await request(app)
+      .patch(`/api/menu-items/${menuItemId}`)
+      .set('Authorization', `Bearer ${cuisineToken}`)
+      .send({ vatRate: 'TAUX_20' });
+    expect(vatRes.status).toBe(403);
+
+    // Le Gérant, lui, peut modifier le prix.
+    const gerantPriceRes = await request(app)
+      .patch(`/api/menu-items/${menuItemId}`)
+      .set('Authorization', `Bearer ${gerantToken}`)
+      .send({ sellingPriceTTC: 25 });
+    expect(gerantPriceRes.status).toBe(200);
+
+    await request(app)
+      .delete(`/api/menu-items/${menuItemId}`)
+      .set('Authorization', `Bearer ${gerantToken}`);
+  });
+
   it("un compte Cuisine ne peut PAS gérer l'équipe (réservé au Gérant)", async () => {
     const token = await loginAs('CUISINE');
     const res = await request(app).get('/api/users').set('Authorization', `Bearer ${token}`);

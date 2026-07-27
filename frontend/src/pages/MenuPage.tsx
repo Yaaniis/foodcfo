@@ -24,7 +24,11 @@ const VAT_LABELS: Record<string, string> = {
 };
 
 export default function MenuPage() {
-  const { authFetch } = useAuth();
+  const { authFetch, user } = useAuth();
+  // Service consulte la carte et les allergènes en lecture seule
+  // (décision 0.5) — jamais la marge (donnée financière interne) ni les
+  // actions d'édition, réservées à Gérant/Cuisine.
+  const canManage = user?.role === 'GERANT' || user?.role === 'CUISINE';
 
   const [items, setItems] = useState<MenuItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -104,18 +108,22 @@ export default function MenuPage() {
 
         <div className="flex items-center justify-between mt-2 mb-2">
           <h1 className="text-2xl font-bold text-slate-900">La carte</h1>
-          <button
-            onClick={() => setShowForm((v) => !v)}
-            className="min-h-[44px] px-4 rounded-lg bg-slate-900 text-white font-medium"
-          >
-            {showForm ? 'Annuler' : '+ Ajouter un plat'}
-          </button>
+          {canManage && (
+            <button
+              onClick={() => setShowForm((v) => !v)}
+              className="min-h-[44px] px-4 rounded-lg bg-slate-900 text-white font-medium"
+            >
+              {showForm ? 'Annuler' : '+ Ajouter un plat'}
+            </button>
+          )}
         </div>
-        <Link to="/suppliers" className="text-sm text-slate-500 underline">
-          Gérer les fournisseurs et produits →
-        </Link>
+        {canManage && (
+          <Link to="/suppliers" className="text-sm text-slate-500 underline">
+            Gérer les fournisseurs et produits →
+          </Link>
+        )}
 
-        {showForm && (
+        {showForm && canManage && (
           <form onSubmit={handleCreate} className="bg-white rounded-2xl border border-slate-200 p-6 my-6 space-y-4">
             <input
               placeholder="Nom du plat"
@@ -207,15 +215,25 @@ export default function MenuPage() {
                   )}
                 </div>
                 <div className="shrink-0 flex flex-col items-end gap-1.5">
-                  <button
-                    onClick={() => toggleActive(item)}
-                    className={`min-h-[44px] px-3 rounded-lg text-sm font-medium ${
-                      item.isActive ? 'bg-slate-100 text-slate-700' : 'bg-red-50 text-red-600'
-                    }`}
-                  >
-                    {item.isActive ? 'Actif' : 'Inactif'}
-                  </button>
-                  {item.margin && (
+                  {canManage ? (
+                    <button
+                      onClick={() => toggleActive(item)}
+                      className={`min-h-[44px] px-3 rounded-lg text-sm font-medium ${
+                        item.isActive ? 'bg-slate-100 text-slate-700' : 'bg-red-50 text-red-600'
+                      }`}
+                    >
+                      {item.isActive ? 'Actif' : 'Inactif'}
+                    </button>
+                  ) : (
+                    <span
+                      className={`text-sm font-medium px-3 py-2 rounded-lg ${
+                        item.isActive ? 'bg-slate-100 text-slate-700' : 'bg-red-50 text-red-600'
+                      }`}
+                    >
+                      {item.isActive ? 'Actif' : 'Inactif'}
+                    </span>
+                  )}
+                  {canManage && item.margin && (
                     <span
                       className={`text-xs font-medium px-2 py-1 rounded-lg border ${MARGIN_STATUS_STYLES[item.margin.status]}`}
                     >
@@ -224,12 +242,14 @@ export default function MenuPage() {
                   )}
                 </div>
               </div>
-              <Link
-                to={`/menu/${item.id}/recipe`}
-                className="inline-block mt-3 text-sm text-slate-900 underline font-medium"
-              >
-                {item.recipe ? 'Modifier la fiche technique →' : 'Créer la fiche technique →'}
-              </Link>
+              {canManage && (
+                <Link
+                  to={`/menu/${item.id}/recipe`}
+                  className="inline-block mt-3 text-sm text-slate-900 underline font-medium"
+                >
+                  {item.recipe ? 'Modifier la fiche technique →' : 'Créer la fiche technique →'}
+                </Link>
+              )}
             </li>
           ))}
         </ul>

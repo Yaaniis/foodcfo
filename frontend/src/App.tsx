@@ -54,8 +54,17 @@ function App() {
               <Route path="/restaurant-settings" element={<RestaurantSettingsPage />} />
             </Route>
 
-            <Route element={<RequireRole roles={['GERANT', 'CUISINE']} />}>
+            {/* La carte est ouverte en lecture au Service (décision 0.5 :
+                "consultation carte/allergènes en lecture seule") — MenuPage
+                masque elle-même la marge et les actions d'édition pour ce
+                rôle. Tout le reste (fiche technique avec coût matière,
+                fournisseurs, factures, commandes, gaspillage) reste
+                Gérant/Cuisine uniquement. */}
+            <Route element={<RequireRole roles={['GERANT', 'CUISINE', 'SERVICE']} />}>
               <Route path="/menu" element={<MenuPage />} />
+            </Route>
+
+            <Route element={<RequireRole roles={['GERANT', 'CUISINE']} />}>
               <Route path="/menu/:menuItemId/recipe" element={<RecipePage />} />
               <Route path="/suppliers" element={<SuppliersProductsPage />} />
               <Route path="/invoices" element={<InvoicesPage />} />

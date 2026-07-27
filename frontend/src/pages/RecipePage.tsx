@@ -49,7 +49,8 @@ const VAT_OPTIONS: { value: string; label: string }[] = [
 export default function RecipePage() {
   const { menuItemId } = useParams<{ menuItemId: string }>();
   const navigate = useNavigate();
-  const { authFetch } = useAuth();
+  const { authFetch, user } = useAuth();
+  const canEditPricing = user?.role === 'GERANT';
 
   const [menuItem, setMenuItem] = useState<MenuItemDetail | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
@@ -228,7 +229,8 @@ export default function RecipePage() {
                   min="0"
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
-                  className="mt-1 w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
+                  disabled={!canEditPricing}
+                  className="mt-1 w-full min-h-[44px] rounded-lg border border-slate-300 px-3 disabled:bg-slate-100 disabled:text-slate-400"
                 />
               </label>
               <label className="block text-sm font-medium text-slate-700">
@@ -236,7 +238,8 @@ export default function RecipePage() {
                 <select
                   value={vatRate}
                   onChange={(e) => setVatRate(e.target.value)}
-                  className="mt-1 w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
+                  disabled={!canEditPricing}
+                  className="mt-1 w-full min-h-[44px] rounded-lg border border-slate-300 px-3 disabled:bg-slate-100 disabled:text-slate-400"
                 >
                   {VAT_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>
@@ -246,6 +249,11 @@ export default function RecipePage() {
                 </select>
               </label>
             </div>
+            {!canEditPricing && (
+              <p className="text-xs text-slate-400 -mt-2">
+                Seul un Gérant peut modifier le prix de vente ou la TVA.
+              </p>
+            )}
 
             <div>
               <p className="text-sm font-medium text-slate-700 mb-2">Allergènes présents</p>

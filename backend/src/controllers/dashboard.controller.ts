@@ -92,5 +92,13 @@ export async function gatherDashboardData(restaurantId: string) {
 
 export async function getDashboard(req: Request, res: Response) {
   const data = await gatherDashboardData(req.user!.restaurantId);
+  // Service consulte la carte en lecture seule (décision 0.5) : la
+  // marge, ses agrégats (marge moyenne, économies potentielles,
+  // compteurs vert/orange/rouge) et le gaspillage en euros sont des
+  // données de pilotage financier interne, masquées ici comme sur
+  // GET /menu-items — pas seulement dans l'UI.
+  if (req.user!.role === 'SERVICE') {
+    return res.json({ thresholds: data.thresholds, kpis: null, menuItems: [] });
+  }
   res.json(data);
 }

@@ -22,6 +22,9 @@ interface DashboardMenuItem {
 
 interface DashboardData {
   thresholds: { greenThreshold: number; orangeThreshold: number };
+  // null pour un compte Service : la marge et ses agrégats sont des
+  // données de pilotage financier interne (décision 0.5), pas juste
+  // masquées côté affichage — le backend ne les calcule/renvoie pas.
   kpis: {
     totalActiveMenuItems: number;
     missingRecipeCount: number;
@@ -31,7 +34,7 @@ interface DashboardData {
     averageMarginRatio: number | null;
     potentialSavings: number;
     wasteThisMonth: number;
-  };
+  } | null;
   menuItems: DashboardMenuItem[];
 }
 
@@ -135,7 +138,15 @@ export default function DashboardPage() {
         {isLoading && <p className="text-slate-500">Chargement…</p>}
         {error && <p className="text-red-600">{error}</p>}
 
-        {data && (
+        {data && !data.kpis && (
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-4">
+            <p className="text-slate-600">
+              Consultez la carte du restaurant et les allergènes des plats ci-dessous.
+            </p>
+          </div>
+        )}
+
+        {data && data.kpis && (
           <>
             <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-4">
               <div className="flex items-center justify-between mb-4">
@@ -263,11 +274,10 @@ export default function DashboardPage() {
         )}
 
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          {(user?.role === 'GERANT' || user?.role === 'CUISINE') && (
-            <Link to="/menu" className="inline-block mr-6 text-slate-900 font-medium underline">
-              La carte →
-            </Link>
-          )}
+          {/* Service consulte la carte en lecture seule (décision 0.5). */}
+          <Link to="/menu" className="inline-block mr-6 text-slate-900 font-medium underline">
+            La carte →
+          </Link>
           {(user?.role === 'GERANT' || user?.role === 'CUISINE') && (
             <Link to="/invoices" className="inline-block mr-6 text-slate-900 font-medium underline">
               Factures →
