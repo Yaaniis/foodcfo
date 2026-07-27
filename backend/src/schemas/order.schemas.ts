@@ -1,11 +1,15 @@
 import { z } from 'zod';
+import { DECIMAL_10_4_MAX } from './decimalLimits';
 
 export const createOrdersFromCartSchema = z.object({
   items: z
     .array(
       z.object({
         productId: z.string().min(1, 'Produit requis.'),
-        quantity: z.coerce.number().positive('La quantité doit être positive.'),
+        quantity: z.coerce
+          .number()
+          .positive('La quantité doit être positive.')
+          .max(DECIMAL_10_4_MAX, 'Quantité trop élevée.'),
       }),
     )
     .min(1, 'Le panier ne peut pas être vide.'),
@@ -16,7 +20,10 @@ export const updateOrderLinesSchema = z.object({
     .array(
       z.object({
         productId: z.string().min(1, 'Produit requis.'),
-        quantity: z.coerce.number().positive('La quantité doit être positive.'),
+        quantity: z.coerce
+          .number()
+          .positive('La quantité doit être positive.')
+          .max(DECIMAL_10_4_MAX, 'Quantité trop élevée.'),
       }),
     )
     .min(1, 'Une commande doit contenir au moins une ligne.'),

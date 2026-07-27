@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DECIMAL_10_4_MAX } from './decimalLimits';
 
 const wasteReasonSchema = z.enum(['PERIME', 'ERREUR_PREPARATION', 'INVENDU', 'AUTRE']);
 
@@ -10,7 +11,10 @@ export const createWasteEntrySchema = z
   .object({
     productId: z.string().min(1).optional(),
     menuItemId: z.string().min(1).optional(),
-    quantity: z.coerce.number().positive('La quantité doit être positive.'),
+    quantity: z.coerce
+      .number()
+      .positive('La quantité doit être positive.')
+      .max(DECIMAL_10_4_MAX, 'Quantité trop élevée.'),
     reason: wasteReasonSchema,
   })
   .refine((data) => Boolean(data.productId) !== Boolean(data.menuItemId), {

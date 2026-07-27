@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DECIMAL_10_4_MAX } from './decimalLimits';
 
 export const productUnitSchema = z.enum(['KG', 'G', 'L', 'ML', 'UNITE']);
 
@@ -6,7 +7,7 @@ export const createProductSchema = z.object({
   supplierId: z.string().min(1, 'Fournisseur requis.'),
   name: z.string().min(1, 'Nom du produit requis.'),
   unit: productUnitSchema,
-  currentPriceHT: z.coerce.number().positive('Le prix doit être positif.'),
+  currentPriceHT: z.coerce.number().positive('Le prix doit être positif.').max(DECIMAL_10_4_MAX, 'Prix trop élevé.'),
 });
 
 // currentPriceHT reste modifiable ici (contrairement à ce qu'on
@@ -19,7 +20,7 @@ export const updateProductSchema = z
     supplierId: z.string().min(1).optional(),
     name: z.string().min(1).optional(),
     unit: productUnitSchema.optional(),
-    currentPriceHT: z.coerce.number().positive('Le prix doit être positif.').optional(),
+    currentPriceHT: z.coerce.number().positive('Le prix doit être positif.').max(DECIMAL_10_4_MAX, 'Prix trop élevé.').optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: 'Au moins un champ à modifier est requis.',

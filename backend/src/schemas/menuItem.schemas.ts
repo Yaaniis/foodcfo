@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DECIMAL_10_2_MAX } from './decimalLimits';
 
 // Taux de TVA français applicables en restauration (décision Phase 0 /
 // règles métier du prompt d'origine : 5,5% à emporter, 10% sur place,
@@ -26,7 +27,10 @@ export const allergenSchema = z.enum([
 export const createMenuItemSchema = z.object({
   name: z.string().min(1, 'Nom du plat requis.'),
   category: z.string().min(1, 'Catégorie requise.'),
-  sellingPriceTTC: z.coerce.number().positive('Le prix de vente doit être positif.'),
+  sellingPriceTTC: z.coerce
+    .number()
+    .positive('Le prix de vente doit être positif.')
+    .max(DECIMAL_10_2_MAX, 'Prix de vente trop élevé.'),
   vatRate: vatRateSchema,
   allergens: z.array(allergenSchema).default([]),
 });
@@ -35,7 +39,7 @@ export const updateMenuItemSchema = z
   .object({
     name: z.string().min(1).optional(),
     category: z.string().min(1).optional(),
-    sellingPriceTTC: z.coerce.number().positive().optional(),
+    sellingPriceTTC: z.coerce.number().positive().max(DECIMAL_10_2_MAX, 'Prix de vente trop élevé.').optional(),
     vatRate: vatRateSchema.optional(),
     allergens: z.array(allergenSchema).optional(),
     isActive: z.boolean().optional(),

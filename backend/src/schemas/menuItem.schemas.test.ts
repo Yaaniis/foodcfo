@@ -43,6 +43,21 @@ describe('createMenuItemSchema', () => {
     expect(result.success).toBe(false);
   });
 
+  // Product.sellingPriceTTC est un Decimal(10,2) côté Prisma (max
+  // 99 999 999,99) — sans cette borne côté Zod, une faute de frappe
+  // tactile sur tablette (un chiffre en trop) passait la validation
+  // puis faisait échouer l'écriture Prisma avec un 500 opaque au lieu
+  // d'un 400 clair.
+  it('rejette un prix de vente dépassant la précision Decimal(10,2) de la base', () => {
+    const result = createMenuItemSchema.safeParse({
+      name: 'Plat test',
+      category: 'Plats',
+      sellingPriceTTC: 100_000_000,
+      vatRate: 'TAUX_10',
+    });
+    expect(result.success).toBe(false);
+  });
+
   it('rejette un nom vide', () => {
     const result = createMenuItemSchema.safeParse({
       name: '',

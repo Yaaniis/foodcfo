@@ -24,6 +24,17 @@ describe('upsertRecipeSchema', () => {
     expect(result.success).toBe(false);
   });
 
+  // RecipeIngredient.quantity est un Decimal(10,4) côté Prisma (max
+  // 999 999,9999) — sans cette borne côté Zod, une faute de frappe
+  // faisait échouer l'écriture Prisma avec un 500 opaque au lieu d'un
+  // 400 clair.
+  it('rejette une quantité dépassant la précision Decimal(10,4) de la base', () => {
+    const result = upsertRecipeSchema.safeParse({
+      ingredients: [{ productId: 'prod-1', quantity: 1_000_000 }],
+    });
+    expect(result.success).toBe(false);
+  });
+
   it('rejette un ingrédient sans productId', () => {
     const result = upsertRecipeSchema.safeParse({
       ingredients: [{ quantity: 0.1 }],
