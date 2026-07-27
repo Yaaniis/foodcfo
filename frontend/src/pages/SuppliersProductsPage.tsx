@@ -48,12 +48,14 @@ export default function SuppliersProductsPage() {
   const [supplierName, setSupplierName] = useState('');
   const [supplierCategory, setSupplierCategory] = useState('');
   const [supplierChannel, setSupplierChannel] = useState('EMAIL');
+  const [isCreatingSupplier, setIsCreatingSupplier] = useState(false);
 
   const [showProductForm, setShowProductForm] = useState(false);
   const [productName, setProductName] = useState('');
   const [productUnit, setProductUnit] = useState('KG');
   const [productPrice, setProductPrice] = useState('');
   const [productSupplierId, setProductSupplierId] = useState('');
+  const [isCreatingProduct, setIsCreatingProduct] = useState(false);
 
   const [editingSupplierId, setEditingSupplierId] = useState<string | null>(null);
   const [editSupplierName, setEditSupplierName] = useState('');
@@ -89,6 +91,7 @@ export default function SuppliersProductsPage() {
 
   async function handleCreateSupplier(e: FormEvent) {
     e.preventDefault();
+    setIsCreatingSupplier(true);
     try {
       await authFetch('/api/suppliers', {
         method: 'POST',
@@ -100,11 +103,14 @@ export default function SuppliersProductsPage() {
       await loadAll();
     } catch (err) {
       setError(err instanceof ApiRequestError ? err.message : 'Impossible de créer ce fournisseur.');
+    } finally {
+      setIsCreatingSupplier(false);
     }
   }
 
   async function handleCreateProduct(e: FormEvent) {
     e.preventDefault();
+    setIsCreatingProduct(true);
     try {
       await authFetch('/api/products', {
         method: 'POST',
@@ -121,6 +127,8 @@ export default function SuppliersProductsPage() {
       await loadAll();
     } catch (err) {
       setError(err instanceof ApiRequestError ? err.message : 'Impossible de créer ce produit.');
+    } finally {
+      setIsCreatingProduct(false);
     }
   }
 
@@ -244,8 +252,12 @@ export default function SuppliersProductsPage() {
                   </option>
                 ))}
               </select>
-              <button type="submit" className="w-full min-h-[44px] rounded-lg bg-slate-900 text-white font-medium">
-                Créer ce fournisseur
+              <button
+                type="submit"
+                disabled={isCreatingSupplier}
+                className="w-full min-h-[44px] rounded-lg bg-slate-900 text-white font-medium disabled:opacity-50"
+              >
+                {isCreatingSupplier ? 'Création…' : 'Créer ce fournisseur'}
               </button>
             </form>
           )}
@@ -398,8 +410,12 @@ export default function SuppliersProductsPage() {
                   className="min-h-[44px] rounded-lg border border-slate-300 px-3"
                 />
               </div>
-              <button type="submit" className="w-full min-h-[44px] rounded-lg bg-slate-900 text-white font-medium">
-                Créer ce produit
+              <button
+                type="submit"
+                disabled={isCreatingProduct}
+                className="w-full min-h-[44px] rounded-lg bg-slate-900 text-white font-medium disabled:opacity-50"
+              >
+                {isCreatingProduct ? 'Création…' : 'Créer ce produit'}
               </button>
             </form>
           )}
