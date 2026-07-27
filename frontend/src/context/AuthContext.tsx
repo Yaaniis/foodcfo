@@ -9,7 +9,7 @@
 // tard (cookies httpOnly + CSRF) si l'app grandit au-delà d'un usage
 // interne restreint.
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { apiRequest, ApiRequestError } from '../lib/apiClient';
 
 export type UserRole = 'GERANT' | 'CUISINE' | 'SERVICE';
@@ -122,6 +122,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  // Mutualise les refreshs concurrents : le refresh token est à usage
+  // unique (rotation stricte, révoqué dès qu'il sert — voir
+  // auth.controller.ts). Plusieurs appels authFetch en parallèle
+  // (ex: Promise.all au chargement du tableau de bord) qui expirent au
+  // même moment déclencheraient chacun leur propre refresh avec le
+  // même token sans cette ref — le second échouerait (déjà révoqué par
+  // le premier) et déconnecterait l'utilisateur à tort, même si sa
+  // session était par ailleurs parfaitement valide.
+  const refreshPromiseRef = useRef<Promise<RefreshResponse> | null>(null);
 
   useEffect(() => {
     const stored = loadStoredSession();
@@ -203,10 +212,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const isExpiredToken = err instanceof ApiRequestError && err.status === 401;
       if (isExpiredToken && refreshToken) {
         try {
-          const refreshed = await apiRequest<RefreshResponse>('/api/auth/refresh', {
-            method: 'POST',
-            body: JSON.stringify({ refreshToken }),
-          });
+          // Si un refresh est déjà en vol (déclenché par un autre appel
+          // authFetch concurrent), on attend cette même promesse plutôt
+          // que d'en lancer un second — voir le commentaire sur
+          // refreshPromiseRef ci-dessus pour la raison précise.
+          if (!refreshPromiseRef.current) {
+            refreshPromiseRef.current = apiRequest<RefreshResponse>('/api/auth/refresh', {
+              method: 'POST',
+              body: JSON.stringify({ refreshToken }),
+            }).finally(() => {
+              refreshPromiseRef.current = null;
+            });
+          }
+          const refreshed = await refreshPromiseRef.current;
           setAccessToken(refreshed.accessToken);
           setRefreshToken(refreshed.refreshToken);
           if (user) persistSession({ ...refreshed, user });
