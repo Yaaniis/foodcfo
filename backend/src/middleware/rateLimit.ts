@@ -120,3 +120,22 @@ export const changePasswordRateLimiter = rateLimit({
   keyGenerator: keyByRestaurant,
   message: { error: 'TOO_MANY_ATTEMPTS', message: 'Trop de tentatives. Réessayez plus tard.' },
 });
+
+// Invitation d'un membre d'équipe : depuis que createUser vérifie
+// l'unicité de l'email tous restaurants confondus (voir journal, suite
+// 40), le code 409/201 de cette route révèle si un email donné est
+// déjà utilisé QUELQUE PART sur la plateforme — un Gérant déjà
+// authentifié pourrait sinon l'appeler en boucle pour énumérer des
+// adresses existantes (aucun autre garde-fou ne limitait cet appel).
+// L'ajout d'un membre d'équipe reste une action rare en usage normal :
+// cette limite est large pour ne jamais gêner un usage légitime, tout
+// en rendant une énumération de masse impraticable.
+export const createUserRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipInTests,
+  keyGenerator: keyByRestaurant,
+  message: { error: 'TOO_MANY_ATTEMPTS', message: 'Trop de créations de compte récentes. Réessayez plus tard.' },
+});
