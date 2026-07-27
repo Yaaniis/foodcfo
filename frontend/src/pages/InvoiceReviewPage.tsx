@@ -55,6 +55,7 @@ export default function InvoiceReviewPage() {
   const [newProductId, setNewProductId] = useState('');
   const [newQuantity, setNewQuantity] = useState('');
   const [newUnitPrice, setNewUnitPrice] = useState('');
+  const [isAddingLine, setIsAddingLine] = useState(false);
 
   async function load() {
     setIsLoading(true);
@@ -114,6 +115,7 @@ export default function InvoiceReviewPage() {
 
   async function handleAddLine(e: FormEvent) {
     e.preventDefault();
+    setIsAddingLine(true);
     try {
       const quantity = Number(newQuantity);
       const unitPriceHT = Number(newUnitPrice);
@@ -134,6 +136,8 @@ export default function InvoiceReviewPage() {
       await load();
     } catch (err) {
       setError(err instanceof ApiRequestError ? err.message : "Impossible d'ajouter cette ligne.");
+    } finally {
+      setIsAddingLine(false);
     }
   }
 
@@ -165,7 +169,19 @@ export default function InvoiceReviewPage() {
     return <div className="min-h-screen flex items-center justify-center text-slate-400">Chargement…</div>;
   }
   if (!invoice) {
-    return <div className="min-h-screen flex items-center justify-center text-red-600">Facture introuvable.</div>;
+    // error distingue une vraie erreur réseau/serveur (message précis,
+    // souvent temporaire — wifi cuisine peu fiable) d'une facture
+    // réellement introuvable — sans ça, une simple coupure réseau
+    // affichait le même message qu'une suppression, sans jamais
+    // proposer de réessayer.
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3 text-center px-4">
+        <p className="text-red-600">{error ?? 'Facture introuvable.'}</p>
+        <button onClick={() => load()} className="min-h-[44px] px-4 rounded-lg border border-slate-300 font-medium">
+          Réessayer
+        </button>
+      </div>
+    );
   }
 
   const isEditable = invoice.status !== 'VALIDATED';
@@ -303,8 +319,12 @@ export default function InvoiceReviewPage() {
                   className="min-h-[44px] rounded-lg border border-slate-300 px-3 text-sm"
                 />
               </div>
-              <button type="submit" className="w-full min-h-[44px] rounded-lg border border-slate-300 font-medium">
-                + Ajouter la ligne
+              <button
+                type="submit"
+                disabled={isAddingLine}
+                className="w-full min-h-[44px] rounded-lg border border-slate-300 font-medium disabled:opacity-50"
+              >
+                {isAddingLine ? 'Ajout…' : '+ Ajouter la ligne'}
               </button>
             </form>
           )}

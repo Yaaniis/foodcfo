@@ -12,7 +12,13 @@ interface OrderLine {
 interface OrderDetail {
   id: string;
   status: 'DRAFT' | 'SENT' | 'CONFIRMED' | 'DELIVERED' | 'CANCELLED';
-  supplier: { id: string; name: string; contactEmail: string | null; preferredChannel: string };
+  supplier: {
+    id: string;
+    name: string;
+    contactEmail: string | null;
+    contactPhone: string | null;
+    preferredChannel: string;
+  };
   lineItems: OrderLine[];
   sentAt: string | null;
   confirmedAt: string | null;
@@ -20,6 +26,23 @@ interface OrderDetail {
 }
 
 const UNIT_LABELS: Record<string, string> = { KG: 'kg', G: 'g', L: 'L', ML: 'mL', UNITE: 'unité(s)' };
+
+// Le canal réellement utilisé pour l'envoi automatique dépend de
+// Supplier.preferredChannel — jamais forcément EMAIL. Sans ce mapping,
+// le message de confirmation affichait "envoyée par email" même pour
+// un envoi WhatsApp/SMS réussi, avec le champ email vide en prime.
+function sentViaLabel(supplier: OrderDetail['supplier']): string {
+  switch (supplier.preferredChannel) {
+    case 'WHATSAPP':
+      return `Commande envoyée par WhatsApp à ${supplier.contactPhone}.`;
+    case 'SMS':
+      return `Commande envoyée par SMS à ${supplier.contactPhone}.`;
+    case 'EMAIL':
+      return `Commande envoyée par email à ${supplier.contactEmail}.`;
+    default:
+      return 'Commande envoyée.';
+  }
+}
 
 const STATUS_LABELS: Record<OrderDetail['status'], string> = {
   DRAFT: 'Brouillon',
@@ -106,16 +129,35 @@ export default function OrderDetailPage() {
 
   async function handleCopyMessage() {
     if (!generatedMessage) return;
-    await navigator.clipboard.writeText(generatedMessage.text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(generatedMessage.text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Presse-papiers indisponible (permissions refusées, contexte non
+      // sécurisé) — sans ce try/catch, la promesse rejetée était
+      // silencieuse : le bouton ne réagissait pas du tout, sans le
+      // moindre indice pour l'utilisateur.
+      setError('Impossible de copier automatiquement. Sélectionnez le texte manuellement.');
+    }
   }
 
   if (isLoading) {
     return <div className="min-h-screen flex items-center justify-center text-slate-400">Chargement…</div>;
   }
   if (!order) {
-    return <div className="min-h-screen flex items-center justify-center text-red-600">Commande introuvable.</div>;
+    // error distingue une vraie erreur réseau/serveur (souvent
+    // temporaire — wifi cuisine peu fiable) d'une commande réellement
+    // introuvable — sans ça, une simple coupure réseau affichait le
+    // même message qu'une suppression, sans jamais proposer de réessayer.
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3 text-center px-4">
+        <p className="text-red-600">{error ?? 'Commande introuvable.'}</p>
+        <button onClick={() => load()} className="min-h-[44px] px-4 rounded-lg border border-slate-300 font-medium">
+          Réessayer
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -133,7 +175,7 @@ export default function OrderDetailPage() {
 
         {sendOutcome === 'success' && (
           <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 mb-4">
-            Commande envoyée par email à {order.supplier.contactEmail}.
+            {sentViaLabel(order.supplier)}
           </p>
         )}
 
