@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ApiRequestError } from '../lib/apiClient';
@@ -69,26 +69,46 @@ export default function WastePage() {
   const [reason, setReason] = useState('PERIME');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Verrou contre les flush concurrents : deux appels à flushQueue quasi
+  // simultanés (le useEffect ci-dessous s'exécute deux fois au montage
+  // avec React.StrictMode en dev, et rien ne garantit qu'un futur appelant
+  // n'en ajoute pas un second) liraient tous les deux la même file avant
+  // que le premier n'ait eu le temps d'en retirer quoi que ce soit (pas
+  // d'await synchrone entre la lecture de la file et le premier appel
+  // réseau) — chaque déclaration en attente serait alors soumise deux
+  // fois. Plutôt que de compter sur "un seul endroit appelle flushQueue",
+  // flushQueue se protège elle-même (même principe que refreshPromiseRef
+  // dans AuthContext.tsx).
+  const isFlushingRef = useRef(false);
+
   // Rejoue les déclarations en attente dès que la connexion revient (ou
   // au chargement de l'écran, au cas où elle serait déjà revenue sans
-  // que l'app ait été rouverte).
+  // que l'app ait été rouverte) — le useEffect ci-dessous couvre les deux
+  // cas à lui seul (React exécute un effect au moins une fois au montage,
+  // peu importe ses dépendances).
   const flushQueue = useCallback(async () => {
+    if (isFlushingRef.current) return;
     if (getQueuedWasteEntries().length === 0) return;
-    const result = await syncQueuedWasteEntries((entry) =>
-      authFetch('/api/waste', {
-        method: 'POST',
-        body: JSON.stringify({
-          ...(entry.productId ? { productId: entry.productId } : {}),
-          ...(entry.menuItemId ? { menuItemId: entry.menuItemId } : {}),
-          quantity: entry.quantity,
-          reason: entry.reason,
+    isFlushingRef.current = true;
+    try {
+      const result = await syncQueuedWasteEntries((entry) =>
+        authFetch('/api/waste', {
+          method: 'POST',
+          body: JSON.stringify({
+            ...(entry.productId ? { productId: entry.productId } : {}),
+            ...(entry.menuItemId ? { menuItemId: entry.menuItemId } : {}),
+            quantity: entry.quantity,
+            reason: entry.reason,
+          }),
         }),
-      }),
-    );
-    setQueuedEntries(getQueuedWasteEntries());
-    if (result.synced > 0) {
-      setSyncNotice(`${result.synced} déclaration(s) hors-ligne synchronisée(s).`);
-      await load();
+      );
+      setQueuedEntries(getQueuedWasteEntries());
+      if (result.synced > 0) {
+        setSyncNotice(`${result.synced} déclaration(s) hors-ligne synchronisée(s).`);
+        await load();
+      }
+    } finally {
+      isFlushingRef.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authFetch]);
@@ -122,7 +142,6 @@ export default function WastePage() {
   useEffect(() => {
     load();
     setQueuedEntries(getQueuedWasteEntries());
-    flushQueue();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
