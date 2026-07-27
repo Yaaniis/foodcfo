@@ -7,6 +7,7 @@ import {
   enqueueWasteEntry,
   getQueuedWasteEntries,
   syncQueuedWasteEntries,
+  removeFromQueue,
   type QueuedWasteEntry,
 } from '../lib/offlineQueue';
 
@@ -194,6 +195,21 @@ export default function WastePage() {
     }
   }
 
+  // Une déclaration en attente peut échouer durablement (le produit
+  // qu'elle référence a été supprimé entre-temps) — sans ce bouton,
+  // rien ne permettrait à l'utilisateur de l'abandonner lui-même, elle
+  // resterait affichée "en attente" indéfiniment.
+  function handleDiscardQueued(localId: string) {
+    if (!window.confirm('Abandonner cette déclaration en attente ? Elle ne sera jamais envoyée.')) return;
+    removeFromQueue(localId);
+    setQueuedEntries(getQueuedWasteEntries());
+  }
+
+  function queuedEntryLabel(entry: QueuedWasteEntry): string {
+    if (entry.productId) return products.find((p) => p.id === entry.productId)?.name ?? 'Produit inconnu';
+    return menuItems.find((m) => m.id === entry.menuItemId)?.name ?? 'Plat inconnu';
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8">
       <div className="max-w-2xl mx-auto">
@@ -208,9 +224,27 @@ export default function WastePage() {
           </p>
         )}
         {queuedEntries.length > 0 && (
-          <p className="text-sm text-slate-600 bg-slate-100 border border-slate-200 rounded-lg px-3 py-2 mb-4">
-            {queuedEntries.length} déclaration(s) en attente de synchronisation.
-          </p>
+          <div className="bg-slate-100 border border-slate-200 rounded-lg px-3 py-2 mb-4 space-y-2">
+            <p className="text-sm text-slate-600">
+              {queuedEntries.length} déclaration(s) en attente de synchronisation.
+            </p>
+            <ul className="space-y-1">
+              {queuedEntries.map((entry) => (
+                <li key={entry.localId} className="flex items-center justify-between gap-2 text-sm text-slate-700">
+                  <span className="truncate">
+                    {queuedEntryLabel(entry)} · {entry.quantity} · {REASON_LABELS[entry.reason] ?? entry.reason}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleDiscardQueued(entry.localId)}
+                    className="shrink-0 min-h-[32px] px-2 text-xs text-red-600 underline"
+                  >
+                    Abandonner
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
         {syncNotice && (
           <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 mb-4">

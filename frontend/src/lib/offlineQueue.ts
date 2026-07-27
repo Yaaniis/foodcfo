@@ -49,16 +49,21 @@ export function enqueueWasteEntry(entry: NewQueuedWasteEntry): QueuedWasteEntry 
   return queued;
 }
 
-function removeFromQueue(localId: string): void {
+export function removeFromQueue(localId: string): void {
   writeQueue(readQueue().filter((e) => e.localId !== localId));
 }
 
 // Rejoue chaque déclaration en attente via `submit` (l'appel API réel,
 // fourni par l'appelant pour rester découplé d'apiClient/AuthContext).
 // Chaque entrée synchronisée avec succès est retirée de la file ; une
-// entrée qui échoue à nouveau (toujours hors-ligne, ou erreur serveur)
-// reste en attente pour la prochaine tentative — jamais perdue
-// silencieusement.
+// entrée qui échoue reste en attente — jamais perdue silencieusement.
+//
+// Essaie bien CHAQUE entrée, sans s'arrêter à la première en échec :
+// les déclarations sont indépendantes les unes des autres (rien ne les
+// relie), donc une seule bloquée durablement (ex: le produit qu'elle
+// référence a été supprimé entre-temps par un collègue — une 404, pas
+// une panne réseau temporaire) ne doit jamais empêcher la
+// synchronisation des autres, valides.
 export async function syncQueuedWasteEntries(
   submit: (entry: QueuedWasteEntry) => Promise<void>,
 ): Promise<{ synced: number; remaining: number }> {
@@ -71,12 +76,9 @@ export async function syncQueuedWasteEntries(
       removeFromQueue(entry.localId);
       synced += 1;
     } catch {
-      // On s'arrête au premier échec plutôt que d'essayer les suivants
-      // dans le désordre — si le réseau est revenu mais qu'une requête
-      // échoue pour une autre raison (ex: produit supprimé entre-temps),
-      // mieux vaut laisser toute la file intacte pour un diagnostic
-      // clair que de la vider partiellement de façon imprévisible.
-      break;
+      // Cette entrée reste en file (retirée uniquement en cas de
+      // succès) ; on continue avec la suivante plutôt que d'abandonner
+      // toute la file au premier échec.
     }
   }
 
