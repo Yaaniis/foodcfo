@@ -31,22 +31,36 @@ function readQueue(): QueuedWasteEntry[] {
   }
 }
 
-function writeQueue(queue: QueuedWasteEntry[]): void {
-  localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(queue));
+// `localStorage.setItem` peut lever (quota dépassé, navigation privée
+// Safari qui restreint drastiquement le quota dès le départ) — sans ce
+// try/catch, l'exception remontait brute depuis un event handler React
+// (un ErrorBoundary ne rattrape jamais ça, seulement les erreurs de
+// rendu) : l'utilisateur cliquait "Déclarer la perte" sans le moindre
+// retour visible, la déclaration silencieusement perdue.
+function writeQueue(queue: QueuedWasteEntry[]): boolean {
+  try {
+    localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(queue));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function getQueuedWasteEntries(): QueuedWasteEntry[] {
   return readQueue();
 }
 
-export function enqueueWasteEntry(entry: NewQueuedWasteEntry): QueuedWasteEntry {
+// Renvoie `null` si l'écriture locale a échoué (au lieu de l'entrée
+// créée) — l'appelant doit vérifier ce cas et prévenir l'utilisateur
+// plutôt que de croire la déclaration enregistrée à tort.
+export function enqueueWasteEntry(entry: NewQueuedWasteEntry): QueuedWasteEntry | null {
   const queued: QueuedWasteEntry = {
     ...entry,
     localId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
     queuedAt: new Date().toISOString(),
   };
-  writeQueue([...readQueue(), queued]);
-  return queued;
+  const success = writeQueue([...readQueue(), queued]);
+  return success ? queued : null;
 }
 
 export function removeFromQueue(localId: string): void {

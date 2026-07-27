@@ -150,7 +150,10 @@ export default function WastePage() {
     // raison réseau (pas une erreur métier de l'API) : même repli,
     // plutôt que de faire perdre la saisie à l'utilisateur.
     if (!isOnline) {
-      enqueueWasteEntry(payload);
+      if (!enqueueWasteEntry(payload)) {
+        setError("Impossible d'enregistrer la déclaration localement (stockage plein ou indisponible).");
+        return;
+      }
       setQueuedEntries(getQueuedWasteEntries());
       setSyncNotice('Hors-ligne : la déclaration est enregistrée et sera envoyée dès le retour de la connexion.');
       setSelectedId('');
@@ -169,16 +172,17 @@ export default function WastePage() {
     } catch (err) {
       if (err instanceof ApiRequestError) {
         setError(err.message);
-      } else {
+      } else if (enqueueWasteEntry(payload)) {
         // Pas une erreur applicative (validation, droits...) mais un
         // échec réseau (fetch a levé une TypeError) — même repli que
         // le cas hors-ligne détecté en amont.
-        enqueueWasteEntry(payload);
         setQueuedEntries(getQueuedWasteEntries());
         setSyncNotice('Connexion instable : la déclaration est enregistrée et sera envoyée automatiquement.');
         setSelectedId('');
         setQuantity('');
         setReason('PERIME');
+      } else {
+        setError("Connexion instable, et impossible d'enregistrer la déclaration localement (stockage plein ou indisponible). Réessayez.");
       }
     } finally {
       setIsSubmitting(false);
