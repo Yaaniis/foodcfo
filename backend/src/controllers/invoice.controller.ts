@@ -82,6 +82,46 @@ export async function getInvoiceFile(req: Request, res: Response) {
 // absente/invalide, quota, réponse mal formée...), la facture passe en
 // statut ERROR mais reste exploitable : l'utilisateur peut saisir les
 // lignes manuellement (repli explicitement demandé par le plan).
+// Extrait de uploadInvoice pour être testable directement — comme
+// subscriptionToRestaurantUpdate (billing.controller.ts), aucune vraie
+// clé ANTHROPIC_API_KEY n'existe dans cet environnement, impossible de
+// tester ce filtrage via un vrai appel à extractInvoiceData().
+//
+// `extractInvoiceData` ne fait qu'un cast TypeScript (compile-time) sur
+// la réponse de Claude — aucune garantie runtime. Contrairement à une
+// ligne saisie/éditée à la main (POST/PATCH .../lines), qui passe
+// toujours par createInvoiceLineSchema, une ligne extraite par l'IA
+// n'était jusqu'ici jamais revalidée : une ligne de remise mal
+// interprétée ("Remise fidélité -5,00 €") pouvait entrer en base avec
+// un prix négatif, qui aurait fini dans PriceHistory (jamais protégée
+// par le garde-fou de validateInvoice, contrairement à
+// Product.currentPriceHT) et dans le total de la facture — donc dans
+// le rapport mensuel et l'export comptable. Une ligne rejetée ici
+// n'est pas perdue pour de bon : elle manque simplement à la relecture
+// humaine, qui peut l'ajouter à la main (repli déjà prévu par le
+// design pour toute donnée que l'OCR ne restitue pas bien).
+export function filterValidExtractedLines(lines: { rawLabel: string; quantity: number; unitPriceHT: number; totalPriceHT: number }[]): {
+  validLines: { rawLabel: string; quantity: number; unitPriceHT: number; totalPriceHT: number }[];
+  rejectedCount: number;
+} {
+  const validLines: { rawLabel: string; quantity: number; unitPriceHT: number; totalPriceHT: number }[] = [];
+  let rejectedCount = 0;
+  for (const line of lines) {
+    const result = createInvoiceLineSchema.safeParse(line);
+    if (result.success) {
+      validLines.push({
+        rawLabel: result.data.rawLabel,
+        quantity: result.data.quantity,
+        unitPriceHT: result.data.unitPriceHT,
+        totalPriceHT: result.data.totalPriceHT,
+      });
+    } else {
+      rejectedCount += 1;
+    }
+  }
+  return { validLines, rejectedCount };
+}
+
 export async function uploadInvoice(req: Request, res: Response) {
   if (!req.file) {
     return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'Aucun fichier reçu.' });
@@ -119,6 +159,8 @@ export async function uploadInvoice(req: Request, res: Response) {
 
   try {
     const extracted = await extractInvoiceData(req.file.buffer, fileType);
+    const { validLines, rejectedCount } = filterValidExtractedLines(extracted.lines);
+
     const updated = await prisma.invoice.update({
       where: { id: invoice.id },
       data: {
@@ -126,17 +168,16 @@ export async function uploadInvoice(req: Request, res: Response) {
         invoiceDate: extracted.invoiceDate ? new Date(extracted.invoiceDate) : undefined,
         totalAmount: extracted.totalAmount ?? undefined,
         rawExtractionJson: extracted as unknown as object,
-        lineItems: {
-          create: extracted.lines.map((line) => ({
-            rawLabel: line.rawLabel,
-            quantity: line.quantity,
-            unitPriceHT: line.unitPriceHT,
-            totalPriceHT: line.totalPriceHT,
-          })),
-        },
+        lineItems: { create: validLines },
       },
       select: { ...INVOICE_SCALARS_WITHOUT_FILE, lineItems: true },
     });
+    if (rejectedCount > 0) {
+      logger.warn(
+        { invoiceId: invoice.id, rejectedCount, totalExtracted: extracted.lines.length },
+        "Facture importée avec des lignes manquantes : rejetées par validation (donnée invalide extraite par l'IA)",
+      );
+    }
     return res.status(201).json({ invoice: updated });
   } catch (err) {
     const message =
