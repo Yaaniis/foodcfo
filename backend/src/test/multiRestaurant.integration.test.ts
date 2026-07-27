@@ -219,6 +219,60 @@ describe('Multi-restaurant — ajout, connexion, switch, vue consolidée', () =>
     expect(consolidatedRes.status).toBe(403);
   });
 
+  it("sécurité critique : une collision d'email (sans lien réel entre les comptes) ne permet PAS de prendre le contrôle d'un autre restaurant via switch", async () => {
+    // La "victime" a son propre restaurant, avec son propre mot de
+    // passe — aucun rapport avec l'attaquant.
+    const victimEmail = `victime-${suffix}@test-foodcfo.local`;
+    const victim = await bootstrapRestaurant('Victime', victimEmail);
+
+    // L'attaquant crée son propre restaurant, puis "invite" un membre
+    // d'équipe en réutilisant l'email de la victime avec un mot de
+    // passe de son choix — createUser ne vérifie l'unicité de l'email
+    // que dans le restaurant de l'appelant (pas globalement), donc
+    // rien ne bloque cette création : ce compte partage l'email de la
+    // victime mais a un hash de mot de passe totalement différent
+    // (jamais copié depuis elle).
+    const attacker = await bootstrapRestaurant('Attaquant');
+    const inviteRes = await request(app)
+      .post('/api/users')
+      .set('Authorization', `Bearer ${attacker.accessToken}`)
+      .send({
+        email: victimEmail,
+        password: 'MotDePasseAttaquant456!',
+        firstName: 'Faux',
+        lastName: 'Compte',
+        role: 'GERANT',
+      });
+    expect(inviteRes.status).toBe(201);
+
+    // L'attaquant se connecte avec CE compte fictif, avec SON propre
+    // mot de passe (login reste sûr : il ne matche jamais le hash de
+    // la victime avec le mot de passe de l'attaquant).
+    const attackerLoginRes = await request(app)
+      .post('/api/auth/login')
+      .send({ email: victimEmail, password: 'MotDePasseAttaquant456!', restaurantId: attacker.user.restaurantId });
+    expect(attackerLoginRes.status).toBe(200);
+
+    // Sans la vérification du hash dans switchRestaurant, cet appel
+    // aurait dû réussir et renvoyer des tokens valides pour LE VRAI
+    // compte de la victime, sans jamais connaître son mot de passe.
+    const switchRes = await request(app)
+      .post('/api/restaurants/switch')
+      .set('Authorization', `Bearer ${attackerLoginRes.body.accessToken}`)
+      .send({ restaurantId: victim.user.restaurantId });
+    expect(switchRes.status).toBe(403);
+
+    // Même protection sur la liste des restaurants "liés au compte" :
+    // le restaurant de la victime ne doit jamais y apparaître.
+    const mineRes = await request(app)
+      .get('/api/restaurants/mine')
+      .set('Authorization', `Bearer ${attackerLoginRes.body.accessToken}`);
+    expect(mineRes.status).toBe(200);
+    const restaurantIds = mineRes.body.restaurants.map((r: { id: string }) => r.id);
+    expect(restaurantIds).not.toContain(victim.user.restaurantId);
+    expect(restaurantIds).toEqual([attacker.user.restaurantId]);
+  });
+
   it("isolation : les plats d'un restaurant du compte ne fuient pas dans l'autre restaurant du même compte", async () => {
     const restaurantI1 = await bootstrapRestaurant('I1');
     const addRes = await request(app)

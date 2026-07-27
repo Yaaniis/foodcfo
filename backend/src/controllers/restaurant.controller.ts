@@ -322,13 +322,27 @@ export async function addRestaurant(req: Request, res: Response) {
 }
 
 // Liste tous les restaurants liés au compte de la personne connectée
-// (même email, toutes ses lignes User actives) — alimente le
-// sélecteur/switcher de restaurant du frontend.
+// (même email ET même hash de mot de passe, toutes ses lignes User
+// actives) — alimente le sélecteur/switcher de restaurant du frontend.
+//
+// Le hash (pas seulement l'email) est une condition volontaire : deux
+// lignes User peuvent partager le même email sans être la même
+// personne (l'email n'est unique QUE par restaurant, voir le
+// commentaire sur ce choix dans schema.prisma — un Gérant peut inviter
+// n'importe quel email via createUser, y compris un qui appartient
+// déjà à un compte sur un tout autre restaurant). Seul addRestaurant
+// copie explicitement passwordHash depuis le compte d'origine au
+// moment de lier un restaurant à un compte existant : c'est la seule
+// garantie fiable que deux lignes User représentent la même personne
+// (deux hash argon2 identiques ne peuvent jamais survenir par
+// coïncidence, seulement par copie délibérée — le sel est aléatoire à
+// chaque hash()). Sans cette condition, une simple collision d'email
+// exposerait ici le nom d'un restaurant tiers sans aucun rapport.
 export async function listMyRestaurants(req: Request, res: Response) {
   const currentUser = await prisma.user.findUniqueOrThrow({ where: { id: req.user!.id } });
 
   const memberships = await prisma.user.findMany({
-    where: { email: currentUser.email, isActive: true },
+    where: { email: currentUser.email, passwordHash: currentUser.passwordHash, isActive: true },
     select: { restaurantId: true, role: true, restaurant: { select: { id: true, name: true } } },
     orderBy: { createdAt: 'asc' },
   });
@@ -344,14 +358,24 @@ export async function listMyRestaurants(req: Request, res: Response) {
 }
 
 // Change le restaurant actif sans se déconnecter/reconnecter — vérifie
-// que la personne a bien une ligne User (même email) sur le restaurant
-// visé avant d'émettre de nouveaux tokens pour ce contexte.
+// que la personne a bien une ligne User sur le restaurant visé, ET
+// que cette ligne représente bien la même personne (email ET hash de
+// mot de passe identiques, voir le commentaire détaillé au-dessus de
+// listMyRestaurants) avant d'émettre de nouveaux tokens pour ce
+// contexte. Sans la condition sur le hash, quiconque parvient à faire
+// exister une ligne User avec le même email qu'une victime sur un
+// autre restaurant (par exemple en se faisant "inviter" par un Gérant
+// complice ou en exploitant un Gérant qui invite par erreur un email
+// qu'il ne contrôle pas) obtiendrait des tokens valides pour LE VRAI
+// COMPTE de la victime sans jamais connaître son mot de passe — cette
+// fonction ne redemande sinon jamais de mot de passe, à la différence
+// de login qui vérifie le hash de chaque candidat individuellement.
 export async function switchRestaurant(req: Request, res: Response) {
   const { restaurantId } = switchRestaurantSchema.parse(req.body);
 
   const currentUser = await prisma.user.findUniqueOrThrow({ where: { id: req.user!.id } });
   const target = await prisma.user.findFirst({
-    where: { email: currentUser.email, restaurantId, isActive: true },
+    where: { email: currentUser.email, passwordHash: currentUser.passwordHash, restaurantId, isActive: true },
   });
   if (!target) {
     return res.status(403).json({ error: 'FORBIDDEN', message: "Tu n'as pas accès à ce restaurant." });
