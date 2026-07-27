@@ -6,7 +6,17 @@
 // avec `,` s'ouvrirait dans une seule colonne illisible.
 export function toCsv(headers: string[], rows: (string | number)[][]): string {
   const escapeField = (value: string | number): string => {
-    const str = String(value);
+    let str = String(value);
+    // Neutralise l'injection de formule ("CSV Injection", OWASP) : un
+    // champ texte commençant par ces caractères serait interprété comme
+    // une formule par Excel/LibreOffice à l'ouverture — pertinent ici
+    // car les noms de produits/fournisseurs peuvent provenir de
+    // l'extraction automatique d'une facture scannée, pas uniquement
+    // d'une saisie de confiance. Jamais appliqué à un `number` : par
+    // construction, il ne peut contenir aucun caractère arbitraire.
+    if (typeof value === 'string' && /^[=+\-@\t\r]/.test(str)) {
+      str = `'${str}`;
+    }
     if (/[";\n]/.test(str)) {
       return `"${str.replace(/"/g, '""')}"`;
     }
