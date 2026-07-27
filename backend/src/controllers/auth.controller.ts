@@ -238,11 +238,26 @@ export async function changePassword(req: Request, res: Response) {
   const passwordHash = await hashPassword(newPassword);
 
   // Même principe que resetPassword : toutes les lignes User partageant
-  // cet email (compte multi-restaurant) doivent rester synchronisées.
-  const users = await prisma.user.findMany({ where: { email: currentUser.email } });
+  // cet email ET ce hash actuel (compte multi-restaurant réellement lié,
+  // voir addRestaurant) doivent rester synchronisées. Le filtre sur
+  // passwordHash (pas seulement l'email) est essentiel ici, à la
+  // différence de resetPassword : createUser ne vérifie l'unicité de
+  // l'email que par restaurant, donc un compte totalement étranger
+  // pourrait partager cet email sans être lié. Sans ce filtre,
+  // n'importe qui authentifié sur SON PROPRE compte (avec SON propre
+  // mot de passe, donc `isValid` toujours vrai) écraserait aussi le mot
+  // de passe de tous les autres comptes partageant son email — y
+  // compris un compte tiers sans aucun rapport, avec un mot de passe de
+  // son choix. resetPassword, lui, reste sûr sans ce filtre : le token
+  // est envoyé par email, donc seul le vrai propriétaire de la boîte de
+  // réception peut jamais l'obtenir.
+  const users = await prisma.user.findMany({ where: { email: currentUser.email, passwordHash: currentUser.passwordHash } });
 
   await prisma.$transaction([
-    prisma.user.updateMany({ where: { email: currentUser.email }, data: { passwordHash } }),
+    prisma.user.updateMany({
+      where: { email: currentUser.email, passwordHash: currentUser.passwordHash },
+      data: { passwordHash },
+    }),
     prisma.refreshToken.updateMany({
       where: { userId: { in: users.map((u) => u.id) }, revokedAt: null },
       data: { revokedAt: new Date() },

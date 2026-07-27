@@ -218,5 +218,53 @@ describe('Mot de passe oublié / réinitialisation', () => {
       expect(loginRes.body.requiresRestaurantSelection).toBe(true);
       expect(loginRes.body.restaurants).toHaveLength(2);
     });
+
+    it("sécurité critique : changer son propre mot de passe ne doit JAMAIS écraser celui d'un compte tiers partageant le même email par collision (pas par lien réel)", async () => {
+      // La "victime" a son propre restaurant, son propre mot de passe —
+      // aucun rapport avec l'attaquant.
+      const victimEmail = `reset-${suffix}-victime@test-foodcfo.local`;
+      await bootstrapRestaurant('Victime', victimEmail);
+
+      // L'attaquant crée son propre restaurant, puis "invite" un membre
+      // d'équipe en réutilisant l'email de la victime, avec un mot de
+      // passe de son choix (createUser ne vérifie l'unicité de l'email
+      // que dans le restaurant de l'appelant, pas globalement).
+      const attackerBootstrap = await bootstrapRestaurant('Attaquant2', `reset-${suffix}-attaquant2@test-foodcfo.local`);
+      const inviteRes = await request(app)
+        .post('/api/users')
+        .set('Authorization', `Bearer ${attackerBootstrap.accessToken}`)
+        .send({
+          email: victimEmail,
+          password: 'MotDePasseAttaquant789!',
+          firstName: 'Faux',
+          lastName: 'Compte',
+          role: 'GERANT',
+        });
+      expect(inviteRes.status).toBe(201);
+
+      const attackerLoginRes = await request(app)
+        .post('/api/auth/login')
+        .send({ email: victimEmail, password: 'MotDePasseAttaquant789!', restaurantId: attackerBootstrap.user.restaurantId });
+      expect(attackerLoginRes.status).toBe(200);
+
+      // L'attaquant change SON propre mot de passe, sur SON compte —
+      // authentification et mot de passe actuel tous deux légitimes de
+      // son point de vue. Sans le filtre sur passwordHash, cet appel
+      // aurait aussi écrasé le mot de passe du VRAI compte de la
+      // victime avec une valeur choisie par l'attaquant.
+      const changeRes = await request(app)
+        .patch('/api/auth/password')
+        .set('Authorization', `Bearer ${attackerLoginRes.body.accessToken}`)
+        .send({ currentPassword: 'MotDePasseAttaquant789!', newPassword: 'NouveauMotDePasseAttaquant999!' });
+      expect(changeRes.status).toBe(204);
+
+      // Le VRAI mot de passe de la victime doit rester parfaitement
+      // valide — jamais écrasé par le changement de l'attaquant.
+      const victimLoginRes = await request(app)
+        .post('/api/auth/login')
+        .send({ email: victimEmail, password: 'MotDePasseInitial123!' });
+      expect(victimLoginRes.status).toBe(200);
+      expect(victimLoginRes.body.requiresRestaurantSelection).toBeUndefined();
+    });
   });
 });
