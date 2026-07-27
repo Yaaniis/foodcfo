@@ -325,9 +325,19 @@ export async function validateInvoice(req: Request, res: Response) {
         },
       });
 
-      await tx.product.update({ where: { id: product.id }, data: { currentPriceHT: newPrice } });
+      // Une ligne à 0 € (article offert par le fournisseur, geste
+      // commercial — nonnegative() l'autorise volontairement sur les
+      // lignes de facture, voir invoice.schemas.ts) ou négative (erreur
+      // d'extraction OCR/de saisie) reste enregistrée telle quelle dans
+      // PriceHistory — c'est ce que dit la facture — mais ne doit jamais
+      // devenir LE prix catalogue du produit : ça sous-évaluerait
+      // silencieusement le coût matière, donc gonflerait la marge
+      // affichée, de tous les plats qui l'utilisent.
+      if (newPrice > 0) {
+        await tx.product.update({ where: { id: product.id }, data: { currentPriceHT: newPrice } });
+      }
 
-      if (previousPrice > 0) {
+      if (previousPrice > 0 && newPrice > 0) {
         const increasePercent = ((newPrice - previousPrice) / previousPrice) * 100;
         if (increasePercent > alertThreshold) {
           alerts.push({ productName: product.name, previousPrice, newPrice, increasePercent });

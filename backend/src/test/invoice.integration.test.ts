@@ -166,6 +166,43 @@ describe('Factures — upload, repli manuel, validation', () => {
     expect(validateRes.body.alertsGenerated).toHaveLength(0);
   });
 
+  it('une ligne à 0€ (article offert par le fournisseur) est conservée dans l\'historique mais ne dégrade pas le prix catalogue du produit', async () => {
+    const restaurant = await bootstrapRestaurant('J');
+    const { supplierId, productId } = await setupSupplierAndProduct(restaurant.accessToken, 20);
+
+    const uploadRes = await request(app)
+      .post('/api/invoices')
+      .set('Authorization', `Bearer ${restaurant.accessToken}`)
+      .field('supplierId', supplierId)
+      .attach('file', Buffer.from('%PDF-1.4\ncontenu factice'), 'facture.pdf');
+    const invoiceId = uploadRes.body.invoice.id as string;
+
+    await request(app)
+      .post(`/api/invoices/${invoiceId}/lines`)
+      .set('Authorization', `Bearer ${restaurant.accessToken}`)
+      .send({ rawLabel: 'Filet de bœuf 1kg — échantillon offert', productId, quantity: 1, unitPriceHT: 0, totalPriceHT: 0 });
+
+    const validateRes = await request(app)
+      .post(`/api/invoices/${invoiceId}/validate`)
+      .set('Authorization', `Bearer ${restaurant.accessToken}`);
+
+    expect(validateRes.status).toBe(200);
+    // Aucune alerte de hausse/baisse : un prix à 0€ ne doit jamais être
+    // comparé au prix catalogue précédent (n'a pas de sens).
+    expect(validateRes.body.alertsGenerated).toHaveLength(0);
+
+    // Le catalogue garde le vrai prix (20€), pas le prix de la ligne
+    // offerte (0€) — sinon tous les plats utilisant ce produit
+    // afficheraient un coût matière nul jusqu'à la prochaine facture.
+    const product = await prisma.product.findUniqueOrThrow({ where: { id: productId } });
+    expect(Number(product.currentPriceHT)).toBe(20);
+
+    // L'historique, lui, reflète fidèlement ce que disait la facture.
+    const priceHistory = await prisma.priceHistory.findMany({ where: { productId } });
+    expect(priceHistory).toHaveLength(1);
+    expect(Number(priceHistory[0].priceHT)).toBe(0);
+  });
+
   it("refuse de valider une facture sans fournisseur associé", async () => {
     const restaurant = await bootstrapRestaurant('D');
     const { productId } = await setupSupplierAndProduct(restaurant.accessToken, 20);
