@@ -1,9 +1,23 @@
 import { z } from 'zod';
 
+// Un identifiant de fuseau horaire invalide ferait planter tout calcul
+// "ce mois-ci" (Intl.DateTimeFormat lève une RangeError, voir
+// lib/timezone.ts) — validé contre la liste IANA officielle exposée
+// par le moteur JS plutôt que laissé en texte libre. Réutilisé sur les
+// trois endpoints qui écrivent Restaurant.timezone (bootstrap, add,
+// update) : seul updateRestaurantSchema l'utilisait jusqu'ici, alors
+// que bootstrap/add acceptaient un z.string() nu — un appel API direct
+// (pas via le frontend actuel, qui n'envoie jamais ce champ à la
+// création) aurait pu créer un restaurant avec un fuseau qui fait
+// planter son propre tableau de bord dès le premier chargement.
+export const ianaTimezoneSchema = z.string().refine((value) => Intl.supportedValuesOf('timeZone').includes(value), {
+  message: 'Fuseau horaire invalide.',
+});
+
 export const bootstrapRestaurantSchema = z.object({
   restaurantName: z.string().min(1, 'Le nom du restaurant est requis.'),
   currency: z.string().default('EUR'),
-  timezone: z.string().default('Europe/Paris'),
+  timezone: ianaTimezoneSchema.default('Europe/Paris'),
   gerant: z.object({
     email: z.string().email('Adresse email invalide.'),
     password: z.string().min(8, 'Le mot de passe doit contenir au moins 8 caractères.'),
@@ -34,14 +48,6 @@ export const updateThresholdsSchema = z
 
 export type UpdateThresholdsInput = z.infer<typeof updateThresholdsSchema>;
 
-// Un identifiant de fuseau horaire invalide ferait planter tout calcul
-// "ce mois-ci" (Intl.DateTimeFormat lève une RangeError, voir
-// lib/timezone.ts) — validé contre la liste IANA officielle exposée
-// par le moteur JS plutôt que laissé en texte libre.
-const ianaTimezoneSchema = z.string().refine((value) => Intl.supportedValuesOf('timeZone').includes(value), {
-  message: 'Fuseau horaire invalide.',
-});
-
 export const updateRestaurantSchema = z
   .object({
     name: z.string().min(1).optional(),
@@ -60,7 +66,7 @@ export type UpdateRestaurantInput = z.infer<typeof updateRestaurantSchema>;
 export const addRestaurantSchema = z.object({
   restaurantName: z.string().min(1, 'Le nom du restaurant est requis.'),
   currency: z.string().default('EUR'),
-  timezone: z.string().default('Europe/Paris'),
+  timezone: ianaTimezoneSchema.default('Europe/Paris'),
 });
 
 export type AddRestaurantInput = z.infer<typeof addRestaurantSchema>;
