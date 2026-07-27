@@ -74,7 +74,11 @@ export async function extractInvoiceData(
     throw new InvoiceExtractionError('Type de fichier non pris en charge pour l\'extraction.');
   }
 
-  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  // Le SDK a par défaut un timeout de 10 minutes — bien plus que ce
+  // qu'une extraction de facture devrait jamais légitimement prendre,
+  // resserré pour éviter de laisser un upload pendre trop longtemps
+  // côté utilisateur en cas de panne de l'API.
+  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, timeout: 60_000 });
   const base64Data = fileBuffer.toString('base64');
 
   const documentBlock =

@@ -37,6 +37,9 @@ export async function sendSms(to: string, text: string): Promise<void> {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: body.toString(),
+      // Sans timeout, un Twilio qui ne répond jamais laisserait la
+      // requête pendre indéfiniment côté client.
+      signal: AbortSignal.timeout(20_000),
     });
   } catch (err) {
     throw new SmsError(`Appel à l'API Twilio échoué : ${err instanceof Error ? err.message : 'erreur inconnue'}`);

@@ -40,6 +40,9 @@ export async function sendWhatsAppMessage(to: string, text: string): Promise<voi
         type: 'text',
         text: { body: text },
       }),
+      // Sans timeout, une API Meta qui ne répond jamais laisserait la
+      // requête pendre indéfiniment côté client.
+      signal: AbortSignal.timeout(20_000),
     });
   } catch (err) {
     throw new WhatsAppError(
