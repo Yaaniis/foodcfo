@@ -46,7 +46,7 @@ Un même compte (même email) peut être lié à plusieurs restaurants (une lign
 | Méthode | Route | Rôle | Description |
 |---|---|---|---|
 | GET | `/` | GERANT | Liste des comptes du restaurant |
-| POST | `/` | GERANT | `{ email, password, firstName, lastName, role }` |
+| POST | `/` | GERANT | `{ email, password, firstName, lastName, role }`. `409 EMAIL_TAKEN` si l'email est déjà utilisé — dans ce restaurant ou sur n'importe quel autre (vérifié tous restaurants confondus, comme `bootstrap`). Limité à 20/heure par restaurant |
 | PATCH | `/:id` | GERANT | `{ role?, isActive?, firstName?, lastName? }` (pas de changement d'email/mot de passe via cet endpoint) |
 
 ## Fournisseurs — `/api/suppliers`
@@ -67,10 +67,10 @@ Un même compte (même email) peut être lié à plusieurs restaurants (une lign
 
 | Méthode | Route | Rôle | Description |
 |---|---|---|---|
-| GET | `/` | tous | Liste des plats, `margin` calculée à la volée pour chacun (`null` si pas de fiche technique) |
-| GET | `/:id` | tous | Détail d'un plat + fiche technique + `margin` |
+| GET | `/` | tous | Liste des plats, `margin` calculée à la volée pour chacun (`null` si pas de fiche technique **ou** si le rôle est SERVICE — donnée financière interne, hors du périmètre "lecture carte/allergènes"). Pour SERVICE, `recipe` est aussi toujours `null` (la fiche technique porte le prix d'achat de chaque ingrédient) |
+| GET | `/:id` | tous | Détail d'un plat + fiche technique + `margin` — mêmes restrictions pour SERVICE que ci-dessus |
 | POST | `/` | GERANT, CUISINE | `{ name, category, sellingPriceTTC, vatRate, allergens? }` |
-| PATCH | `/:id` | GERANT, CUISINE | Champs partiels (y compris `isActive`) |
+| PATCH | `/:id` | GERANT, CUISINE | Champs partiels (y compris `isActive`). `sellingPriceTTC`/`vatRate` réservés à GERANT seul — `403 FORBIDDEN` si CUISINE les envoie (le reste des champs passe normalement) |
 | DELETE | `/:id` | GERANT | `204` |
 | PUT | `/:menuItemId/recipe` | GERANT, CUISINE | Remplace intégralement la fiche technique. `{ ingredients: [{ productId, quantity }] }` |
 
@@ -78,7 +78,7 @@ Un même compte (même email) peut être lié à plusieurs restaurants (une lign
 
 | Méthode | Route | Rôle | Description |
 |---|---|---|---|
-| GET | `/` | tous | `{ thresholds, kpis: { totalActiveMenuItems, missingRecipeCount, greenCount, orangeCount, redCount, averageMarginRatio, potentialSavings, wasteThisMonth }, menuItems: [...] }` |
+| GET | `/` | tous | `{ thresholds, kpis: { totalActiveMenuItems, missingRecipeCount, greenCount, orangeCount, redCount, averageMarginRatio, potentialSavings, wasteThisMonth }, menuItems: [...] }`. Pour SERVICE : `kpis: null, menuItems: []` (KPIs de marge = donnée financière interne, hors du périmètre "lecture carte/allergènes") |
 
 ## Factures — `/api/invoices`
 
