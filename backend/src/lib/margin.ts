@@ -86,3 +86,29 @@ export function potentialSavingToReachGreen(
   const requiredCostHT = sellingPriceTTC * (1 - thresholds.greenThreshold / 100);
   return Math.max(0, costHT - requiredCostHT);
 }
+
+// Calcule la marge d'un plat à partir de sa fiche technique (le cas
+// "pas encore de fiche technique" renvoie null : impossible de calculer
+// un coût matière sans ingrédients, voir commentaire sur MenuItem.recipe
+// dans le schéma Prisma). Vit ici (pas dans menuItem.controller.ts) pour
+// rester importable depuis d'autres fonctions pures de lib/ (voir
+// lib/marginAlerts.ts) sans dépendance circulaire lib → controller.
+export type MenuItemWithRecipe = {
+  sellingPriceTTC: unknown;
+  vatRate: VatRate;
+  recipe: { ingredients: { quantity: unknown; product: { currentPriceHT: unknown } }[] } | null;
+};
+
+export function computeMenuItemMargin(
+  menuItem: MenuItemWithRecipe,
+  thresholds: MarginThresholds,
+): MarginResult | null {
+  if (!menuItem.recipe || menuItem.recipe.ingredients.length === 0) {
+    return null;
+  }
+  const ingredients = menuItem.recipe.ingredients.map((i) => ({
+    quantity: Number(i.quantity),
+    unitPriceHT: Number(i.product.currentPriceHT),
+  }));
+  return computeMargin(Number(menuItem.sellingPriceTTC), menuItem.vatRate, ingredients, thresholds);
+}

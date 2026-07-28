@@ -29,6 +29,7 @@ import { wasteRouter } from './routes/waste.routes';
 import { exportRouter } from './routes/export.routes';
 import { reportRouter } from './routes/report.routes';
 import { billingRouter } from './routes/billing.routes';
+import { alertRouter } from './routes/alert.routes';
 import { handleStripeWebhook } from './controllers/billing.controller';
 import { requireAuth } from './middleware/auth';
 import { errorHandler } from './middleware/errorHandler';
@@ -93,6 +94,7 @@ app.use('/api/waste', wasteRouter);
 app.use('/api/exports', exportRouter);
 app.use('/api/reports', reportRouter);
 app.use('/api/billing', billingRouter);
+app.use('/api/alerts', alertRouter);
 
 // Renvoie le profil complet de l'utilisateur connecté — interroge la
 // base plutôt que de se contenter du contenu du token, pour que le

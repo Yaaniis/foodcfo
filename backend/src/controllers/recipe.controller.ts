@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { upsertRecipeSchema } from '../schemas/recipe.schemas';
+import { checkMarginAlertsForMenuItems } from '../lib/marginAlerts';
 
 // Remplace intégralement la fiche technique d'un plat (upsert) : plus
 // simple et plus sûr qu'un diff ligne par ligne pour un formulaire où
@@ -42,6 +43,10 @@ export async function upsertRecipe(req: Request, res: Response) {
     },
     include: { ingredients: { include: { product: true } } },
   });
+
+  // Un changement de recette (ingrédients ou quantités) modifie
+  // directement le coût matière, donc la marge du plat.
+  await checkMarginAlertsForMenuItems(prisma, req.user!.restaurantId, [menuItem.id]);
 
   res.json({ recipe });
 }

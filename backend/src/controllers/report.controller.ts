@@ -3,8 +3,7 @@ import { prisma } from '../lib/prisma';
 import { logger } from '../lib/logger';
 import { getRestaurantThresholds } from '../lib/restaurantThresholds';
 import { monthRangeInTimezone } from '../lib/timezone';
-import { computeMenuItemMargin } from './menuItem.controller';
-import { potentialSavingToReachGreen } from '../lib/margin';
+import { potentialSavingToReachGreen, computeMenuItemMargin } from '../lib/margin';
 import { buildMonthlyReportEmail, type MonthlyReportData } from '../lib/monthlyReport';
 import { sendEmail, EmailError } from '../lib/email';
 

@@ -1,9 +1,8 @@
 import type { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
-import { potentialSavingToReachGreen } from '../lib/margin';
+import { potentialSavingToReachGreen, computeMenuItemMargin } from '../lib/margin';
 import { getRestaurantThresholds } from '../lib/restaurantThresholds';
 import { monthRangeInTimezone } from '../lib/timezone';
-import { computeMenuItemMargin } from './menuItem.controller';
 
 export interface DashboardKpis {
   totalActiveMenuItems: number;

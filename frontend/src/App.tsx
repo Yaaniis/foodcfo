@@ -19,6 +19,7 @@ import InvoiceReviewPage from './pages/InvoiceReviewPage';
 import OrdersPage from './pages/OrdersPage';
 import OrderDetailPage from './pages/OrderDetailPage';
 import WastePage from './pages/WastePage';
+import AlertsPage from './pages/AlertsPage';
 import ReportsPage from './pages/ReportsPage';
 import ConsolidatedPage from './pages/ConsolidatedPage';
 import BillingPage from './pages/BillingPage';
@@ -72,6 +73,7 @@ function App() {
               <Route path="/orders" element={<OrdersPage />} />
               <Route path="/orders/:orderId" element={<OrderDetailPage />} />
               <Route path="/waste" element={<WastePage />} />
+              <Route path="/alerts" element={<AlertsPage />} />
             </Route>
           </Route>
 

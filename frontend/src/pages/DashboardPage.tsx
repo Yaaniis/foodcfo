@@ -49,6 +49,7 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeAlertCount, setActiveAlertCount] = useState(0);
 
   const [showThresholds, setShowThresholds] = useState(false);
   const [greenInput, setGreenInput] = useState('');
@@ -68,6 +69,19 @@ export default function DashboardPage() {
       setError(err instanceof ApiRequestError ? err.message : 'Impossible de charger le tableau de bord.');
     } finally {
       setIsLoading(false);
+    }
+
+    // Service n'a pas accès à /api/alerts (décision 0.5, données de
+    // pilotage financier) — appel évité pour ne pas générer un 403
+    // systématique dans la console pour ce rôle.
+    if (user?.role === 'GERANT' || user?.role === 'CUISINE') {
+      try {
+        const { alerts } = await authFetch<{ alerts: { status: string }[] }>('/api/alerts');
+        setActiveAlertCount(alerts.filter((a) => a.status === 'ACTIVE').length);
+      } catch {
+        // Non bloquant : l'essentiel du tableau de bord reste utilisable
+        // même si le décompte d'alertes échoue à charger.
+      }
     }
   }
 
@@ -291,6 +305,17 @@ export default function DashboardPage() {
           {(user?.role === 'GERANT' || user?.role === 'CUISINE') && (
             <Link to="/waste" className="inline-block mr-6 text-slate-900 font-medium underline">
               Gaspillage →
+            </Link>
+          )}
+          {(user?.role === 'GERANT' || user?.role === 'CUISINE') && (
+            <Link to="/alerts" className="inline-block mr-6 text-slate-900 font-medium underline">
+              Alertes
+              {activeAlertCount > 0 && (
+                <span className="ml-1.5 inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded-full bg-red-600 text-white text-xs font-bold no-underline">
+                  {activeAlertCount}
+                </span>
+              )}
+              {' →'}
             </Link>
           )}
           {user?.role === 'GERANT' && (

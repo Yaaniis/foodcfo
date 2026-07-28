@@ -1,8 +1,9 @@
 import type { Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { createMenuItemSchema, updateMenuItemSchema } from '../schemas/menuItem.schemas';
-import { computeMargin, type VatRate } from '../lib/margin';
+import { computeMenuItemMargin } from '../lib/margin';
 import { getRestaurantThresholds } from '../lib/restaurantThresholds';
+import { checkMarginAlertsForMenuItems } from '../lib/marginAlerts';
 
 // Le Service consulte la carte en lecture seule (décision 0.5) : nom,
 // prix de vente, allergènes. Ni la marge (calculée) ni la fiche
@@ -52,30 +53,6 @@ export async function getMenuItem(req: Request, res: Response) {
   res.json({ menuItem: sanitizeMenuItemForRole(menuItem, req.user!.role, thresholds) });
 }
 
-// Calcule la marge d'un plat à partir de sa fiche technique (le cas
-// "pas encore de fiche technique" renvoie null : impossible de calculer
-// un coût matière sans ingrédients, voir commentaire sur MenuItem.recipe
-// dans le schéma Prisma).
-type MenuItemWithRecipe = {
-  sellingPriceTTC: unknown;
-  vatRate: VatRate;
-  recipe: { ingredients: { quantity: unknown; product: { currentPriceHT: unknown } }[] } | null;
-};
-
-export function computeMenuItemMargin(
-  menuItem: MenuItemWithRecipe,
-  thresholds: { greenThreshold: number; orangeThreshold: number },
-) {
-  if (!menuItem.recipe || menuItem.recipe.ingredients.length === 0) {
-    return null;
-  }
-  const ingredients = menuItem.recipe.ingredients.map((i) => ({
-    quantity: Number(i.quantity),
-    unitPriceHT: Number(i.product.currentPriceHT),
-  }));
-  return computeMargin(Number(menuItem.sellingPriceTTC), menuItem.vatRate, ingredients, thresholds);
-}
-
 export async function createMenuItem(req: Request, res: Response) {
   const input = createMenuItemSchema.parse(req.body);
 
@@ -120,6 +97,13 @@ export async function updateMenuItem(req: Request, res: Response) {
   }
 
   const menuItem = await prisma.menuItem.update({ where: { id: existing.id }, data: input });
+
+  // Un changement de prix de vente ou de TVA modifie directement la
+  // marge — vérifié après coup plutôt que conditionné précisément aux
+  // champs modifiés, pour rester correct même si d'autres champs
+  // influant sur la marge s'ajoutent plus tard à ce schéma.
+  await checkMarginAlertsForMenuItems(prisma, req.user!.restaurantId, [menuItem.id]);
+
   res.json({ menuItem });
 }
 

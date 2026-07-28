@@ -8,6 +8,7 @@ import {
   createInvoiceLineSchema,
   updateInvoiceLineSchema,
 } from '../schemas/invoice.schemas';
+import { checkMarginAlertsForMenuItems, menuItemIdsUsingProducts } from '../lib/marginAlerts';
 
 // `omit` demanderait d'activer une preview feature sur cette version de
 // Prisma — un `select` explicite de tous les champs scalaires sauf
@@ -350,6 +351,7 @@ export async function validateInvoice(req: Request, res: Response) {
   const alertThreshold = Number(restaurant.priceIncreaseAlertThreshold);
 
   const alerts: { productName: string; previousPrice: number; newPrice: number; increasePercent: number }[] = [];
+  const updatedProductIds: string[] = [];
 
   await prisma.$transaction(async (tx) => {
     for (const line of invoice.lineItems) {
@@ -376,6 +378,7 @@ export async function validateInvoice(req: Request, res: Response) {
       // affichée, de tous les plats qui l'utilisent.
       if (newPrice > 0) {
         await tx.product.update({ where: { id: product.id }, data: { currentPriceHT: newPrice } });
+        updatedProductIds.push(product.id);
       }
 
       if (previousPrice > 0 && newPrice > 0) {
@@ -394,6 +397,14 @@ export async function validateInvoice(req: Request, res: Response) {
         }
       }
     }
+
+    // Un prix d'ingrédient qui vient de changer peut faire basculer la
+    // marge d'un ou plusieurs plats sous le seuil rouge (ou, à
+    // l'inverse, la faire remonter si le prix a baissé) — vérifié pour
+    // chaque plat dont la fiche technique référence l'un des produits
+    // mis à jour ci-dessus.
+    const affectedMenuItemIds = await menuItemIdsUsingProducts(tx, updatedProductIds);
+    await checkMarginAlertsForMenuItems(tx, req.user!.restaurantId, affectedMenuItemIds);
 
     // Une facture validée sans date ni montant n'a pas de sens pour la
     // comptabilité (Phase 6 : export CSV, rapport mensuel, tous deux
