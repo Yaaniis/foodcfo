@@ -80,6 +80,15 @@ Un même compte (même email) peut être lié à plusieurs restaurants (une lign
 |---|---|---|---|
 | GET | `/` | tous | `{ thresholds, kpis: { totalActiveMenuItems, missingRecipeCount, greenCount, orangeCount, redCount, averageMarginRatio, potentialSavings, wasteThisMonth }, menuItems: [...] }`. Pour SERVICE : `kpis: null, menuItems: []` (KPIs de marge = donnée financière interne, hors du périmètre "lecture carte/allergènes") |
 
+## Alertes de marge — `/api/alerts`
+
+Réservé à GERANT et CUISINE (même périmètre que le tableau de bord — donnée financière interne). Deux types : `SUPPLIER_PRICE_INCREASE` (générée à la validation d'une facture, seuil `Restaurant.priceIncreaseAlertThreshold`) et `MARGIN_BELOW_THRESHOLD` (générée quand la marge d'un plat passe sous le seuil rouge — vérifié à la validation de facture, à la modification du prix de vente/TVA et à la modification de la fiche technique ; se résout automatiquement quand la marge remonte).
+
+| Méthode | Route | Description |
+|---|---|---|
+| GET | `/` | Toutes les alertes du restaurant (actives et traitées), la plus récente d'abord |
+| PATCH | `/:id` | Body `{ status: 'RESOLVED' \| 'DISMISSED' }`. `404` si introuvable/hors restaurant, `409` (`ALREADY_HANDLED`) si l'alerte n'est plus `ACTIVE` |
+
 ## Factures — `/api/invoices`
 
 Réservé à GERANT et CUISINE (données de coût sensibles).
