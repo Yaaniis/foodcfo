@@ -58,6 +58,23 @@ export const resetPasswordRateLimiter = rateLimit({
   message: { error: 'TOO_MANY_ATTEMPTS', message: 'Trop de tentatives. Réessayez plus tard.' },
 });
 
+// Rafraîchissement de token : seul point d'entrée public de ce fichier
+// qui n'était pas borné. jwt.verify() rejette tout token malformé avant
+// même de toucher la base, donc pas un oracle de force brute comme
+// /login — mais rien n'empêchait un script d'appeler cette route en
+// boucle (chaque appel valide fait une lecture + une écriture en base).
+// Plafond généreux (15 min d'access token → une seule extension légitime
+// appelle /refresh au plus 4 fois/heure/appareil) pour ne jamais gêner
+// plusieurs appareils d'un même restaurant partageant une IP.
+export const refreshRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipInTests,
+  message: { error: 'TOO_MANY_ATTEMPTS', message: 'Trop de tentatives. Réessayez plus tard.' },
+});
+
 // Endpoints authentifiés qui déclenchent un appel à une API tierce
 // payante (Claude pour l'extraction de facture, Resend/WhatsApp/Twilio
 // pour l'envoi) — aucune clé réelle n'est configurée à ce jour, donc

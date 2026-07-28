@@ -7,12 +7,13 @@ import {
   forgotPasswordRateLimiter,
   resetPasswordRateLimiter,
   changePasswordRateLimiter,
+  refreshRateLimiter,
 } from '../middleware/rateLimit';
 
 export const authRouter = Router();
 
 authRouter.post('/login', loginRateLimiter, asyncHandler(login));
-authRouter.post('/refresh', asyncHandler(refresh));
+authRouter.post('/refresh', refreshRateLimiter, asyncHandler(refresh));
 authRouter.post('/logout', asyncHandler(logout));
 authRouter.post('/forgot-password', forgotPasswordRateLimiter, asyncHandler(forgotPassword));
 authRouter.post('/reset-password', resetPasswordRateLimiter, asyncHandler(resetPassword));
