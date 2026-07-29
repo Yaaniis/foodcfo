@@ -436,6 +436,14 @@ export async function getConsolidatedDashboard(req: Request, res: Response) {
       restaurantId: m.restaurant.id,
       restaurantName: m.restaurant.name,
       ...(await gatherDashboardData(m.restaurant.id)),
+      // `redCount` (ci-dessus, via gatherDashboardData) est un état vivant
+      // — recalculé à chaque appel à partir des prix actuels — alors que
+      // activeAlertCount compte les MarginAlert réellement générées
+      // (les deux types : hausse de prix fournisseur ET marge sous le
+      // seuil). Sans ce compteur, un Gérant multi-restaurants n'avait
+      // aucun moyen de savoir qu'une alerte l'attend dans un restaurant
+      // sur lequel il n'a pas basculé depuis un moment.
+      activeAlertCount: await prisma.marginAlert.count({ where: { restaurantId: m.restaurant.id, status: 'ACTIVE' } }),
     })),
   );
 
@@ -449,6 +457,7 @@ export async function getConsolidatedDashboard(req: Request, res: Response) {
     totalPotentialSavings: perRestaurant.reduce((sum, r) => sum + r.kpis.potentialSavings, 0),
     totalWasteThisMonth: perRestaurant.reduce((sum, r) => sum + r.kpis.wasteThisMonth, 0),
     totalRedAlerts: perRestaurant.reduce((sum, r) => sum + r.kpis.redCount, 0),
+    totalActiveAlerts: perRestaurant.reduce((sum, r) => sum + r.activeAlertCount, 0),
   };
 
   res.json({ totals, restaurants: perRestaurant });

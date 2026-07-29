@@ -192,6 +192,51 @@ describe('Multi-restaurant — ajout, connexion, switch, vue consolidée', () =>
     expect(names).toContain('Restaurant multi G2');
   });
 
+  // `redCount` (marges actuellement sous le seuil, recalculé à chaque
+  // appel) et les MarginAlert réellement générées (lib/marginAlerts.ts,
+  // suite 49) sont deux choses différentes — sans ce compteur dédié, un
+  // Gérant multi-restaurants n'avait aucun moyen de savoir qu'une alerte
+  // existait dans un restaurant sur lequel il n'avait pas basculé.
+  it('agrège le nombre d’alertes actives sur plusieurs restaurants dans la vue consolidée', async () => {
+    const restaurantH1 = await bootstrapRestaurant('H1');
+    const addRes = await request(app)
+      .post('/api/restaurants/add')
+      .set('Authorization', `Bearer ${restaurantH1.accessToken}`)
+      .send({ restaurantName: 'Restaurant multi H2' });
+    const restaurantH2Id = addRes.body.user.restaurantId as string;
+    const restaurantH2Token = addRes.body.accessToken as string;
+    createdRestaurantIds.push(restaurantH2Id);
+
+    // Un plat en marge rouge dans H2 (coût matière > 40% du prix de vente).
+    const supplier = await request(app)
+      .post('/api/suppliers')
+      .set('Authorization', `Bearer ${restaurantH2Token}`)
+      .send({ name: 'Fournisseur H2', category: 'Test', preferredChannel: 'EMAIL' });
+    const product = await request(app)
+      .post('/api/products')
+      .set('Authorization', `Bearer ${restaurantH2Token}`)
+      .send({ supplierId: supplier.body.supplier.id, name: 'Produit H2', unit: 'KG', currentPriceHT: 8 });
+    const menuItem = await request(app)
+      .post('/api/menu-items')
+      .set('Authorization', `Bearer ${restaurantH2Token}`)
+      .send({ name: 'Plat H2', category: 'Plats', sellingPriceTTC: 10, vatRate: 'TAUX_10' });
+    await request(app)
+      .put(`/api/menu-items/${menuItem.body.menuItem.id}/recipe`)
+      .set('Authorization', `Bearer ${restaurantH2Token}`)
+      .send({ ingredients: [{ productId: product.body.product.id, quantity: 1 }] });
+
+    const consolidatedRes = await request(app)
+      .get('/api/restaurants/consolidated')
+      .set('Authorization', `Bearer ${restaurantH1.accessToken}`);
+
+    expect(consolidatedRes.status).toBe(200);
+    expect(consolidatedRes.body.totals.totalActiveAlerts).toBe(1);
+    const h2 = consolidatedRes.body.restaurants.find((r: { restaurantId: string }) => r.restaurantId === restaurantH2Id);
+    expect(h2.activeAlertCount).toBe(1);
+    const h1 = consolidatedRes.body.restaurants.find((r: { restaurantId: string }) => r.restaurantId !== restaurantH2Id);
+    expect(h1.activeAlertCount).toBe(0);
+  });
+
   it('réservé au Gérant : un compte Cuisine ne peut ni ajouter de restaurant ni voir la vue consolidée', async () => {
     const restaurantH = await bootstrapRestaurant('H');
     await request(app)

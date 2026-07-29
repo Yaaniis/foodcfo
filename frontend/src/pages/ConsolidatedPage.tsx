@@ -6,6 +6,7 @@ import { ApiRequestError } from '../lib/apiClient';
 interface RestaurantSummary {
   restaurantId: string;
   restaurantName: string;
+  activeAlertCount: number;
   kpis: {
     totalActiveMenuItems: number;
     missingRecipeCount: number;
@@ -25,6 +26,7 @@ interface ConsolidatedData {
     totalPotentialSavings: number;
     totalWasteThisMonth: number;
     totalRedAlerts: number;
+    totalActiveAlerts: number;
   };
   restaurants: RestaurantSummary[];
 }
@@ -81,6 +83,10 @@ export default function ConsolidatedPage() {
                   <p className="text-xs text-red-700">Plats en alerte rouge (total)</p>
                   <p className="text-lg font-bold text-red-700">{data.totals.totalRedAlerts}</p>
                 </div>
+                <div className="p-3 rounded-lg bg-red-50">
+                  <p className="text-xs text-red-700">Alertes actives (total)</p>
+                  <p className="text-lg font-bold text-red-700">{data.totals.totalActiveAlerts}</p>
+                </div>
                 <div className="p-3 rounded-lg bg-slate-50">
                   <p className="text-xs text-slate-500">Économies potentielles (total)</p>
                   <p className="text-lg font-bold text-slate-900">{formatEuros(data.totals.totalPotentialSavings)} €</p>
@@ -95,7 +101,14 @@ export default function ConsolidatedPage() {
             <ul className="space-y-2">
               {data.restaurants.map((r) => (
                 <li key={r.restaurantId} className="bg-white rounded-xl border border-slate-200 p-4">
-                  <p className="font-medium text-slate-900">{r.restaurantName}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-medium text-slate-900">{r.restaurantName}</p>
+                    {r.activeAlertCount > 0 && (
+                      <span className="shrink-0 inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded-full bg-red-600 text-white text-xs font-bold">
+                        {r.activeAlertCount}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm text-slate-500">
                     Marge moyenne :{' '}
                     {r.kpis.averageMarginRatio !== null ? `${r.kpis.averageMarginRatio.toFixed(1)} %` : '—'}
