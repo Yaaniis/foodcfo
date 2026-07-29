@@ -62,6 +62,8 @@ Un même compte (même email) peut être lié à plusieurs restaurants (une lign
 |---|---|---|---|
 | GET | `/` | tous | Liste des produits (avec fournisseur) |
 | POST | `/` | GERANT, CUISINE | `{ supplierId, name, unit, currentPriceHT }` |
+| PATCH | `/:id` | GERANT, CUISINE | Champs optionnels. `currentPriceHT` reste modifiable ici (correction de saisie, indépendante de `PriceHistory`/des factures) — déclenche une vérification des alertes de marge sur les plats concernés |
+| DELETE | `/:id` | GERANT | `409 PRODUCT_IN_USE` si le produit est référencé par une fiche technique ou une commande |
 
 ## Carte / plats — `/api/menu-items`
 
