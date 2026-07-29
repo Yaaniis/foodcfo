@@ -39,7 +39,7 @@ Un même compte (même email) peut être lié à plusieurs restaurants (une lign
 | POST | `/add` | GERANT | Crée un nouveau restaurant lié au compte courant (même email/mot de passe). `{ restaurantName, currency?, timezone? }` → nouveaux tokens pour ce restaurant |
 | GET | `/mine` | tous | Liste des restaurants liés au compte courant : `{ restaurants: [{ id, name, role, isCurrent }] }` |
 | POST | `/switch` | tous | Change de contexte restaurant. `{ restaurantId }` → nouveaux tokens, `403` si aucun compte lié à ce restaurant |
-| GET | `/consolidated` | GERANT | Vue agrégée de tous les restaurants liés : totaux (`restaurantCount`, `averageMarginRatio`, `totalPotentialSavings`, `totalWasteThisMonth`, `totalRedAlerts`) + détail par restaurant |
+| GET | `/consolidated` | GERANT | Vue agrégée de tous les restaurants liés : totaux (`restaurantCount`, `averageMarginRatio`, `totalPotentialSavings`, `totalWasteThisMonth`, `totalRedAlerts`, `totalActiveAlerts`) + détail par restaurant (dont `activeAlertCount`) |
 
 ## Équipe — `/api/users`
 
