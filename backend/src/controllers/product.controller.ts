@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { createProductSchema, updateProductSchema } from '../schemas/product.schemas';
+import { checkMarginAlertsForMenuItems, menuItemIdsUsingProducts } from '../lib/marginAlerts';
 
 export async function listProducts(req: Request, res: Response) {
   const products = await prisma.product.findMany({
@@ -58,6 +59,17 @@ export async function updateProduct(req: Request, res: Response) {
   }
 
   const product = await prisma.product.update({ where: { id: existing.id }, data: input });
+
+  // Une correction manuelle de prix (pas seulement une facture) modifie
+  // directement le coût matière de tout plat référençant ce produit —
+  // même trou que celui comblé par la suite 49 pour le prix de vente et
+  // la fiche technique, ici pour le troisième champ qui influe sur la
+  // marge : le prix d'achat.
+  if (input.currentPriceHT !== undefined) {
+    const affectedMenuItemIds = await menuItemIdsUsingProducts(prisma, [product.id]);
+    await checkMarginAlertsForMenuItems(prisma, req.user!.restaurantId, affectedMenuItemIds);
+  }
+
   res.json({ product });
 }
 

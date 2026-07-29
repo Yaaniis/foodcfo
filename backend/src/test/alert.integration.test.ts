@@ -122,7 +122,7 @@ describe('Alertes de marge — génération et consultation', () => {
     expect(alertAfterRecovery.resolvedAt).not.toBeNull();
   });
 
-  it('génère une alerte quand le prix de vente est baissé sous le seuil rouge, et quand la fiche technique est modifiée en conséquence', async () => {
+  it('génère une alerte quand le prix de vente est baissé sous le seuil rouge, quand la fiche technique est modifiée en conséquence, et quand le prix d’achat du produit est corrigé manuellement', async () => {
     const restaurant = await bootstrapRestaurant('B');
     const { menuItemId, productId } = await setupMenuItemWithRecipe(restaurant.accessToken, 2, 10);
 
@@ -163,6 +163,28 @@ describe('Alertes de marge — génération et consultation', () => {
       where: { menuItemId, type: 'MARGIN_BELOW_THRESHOLD', status: 'ACTIVE' },
     });
     expect(alertsAfterRecipeChange).toHaveLength(1);
+
+    // Revenir à une quantité saine (1kg) résout l'alerte : marge repassée
+    // au vert (coût 2€ pour 10€ de prix de vente).
+    await request(app)
+      .put(`/api/menu-items/${menuItemId}/recipe`)
+      .set('Authorization', `Bearer ${restaurant.accessToken}`)
+      .send({ ingredients: [{ productId, quantity: 1 }] });
+    expect(
+      await prisma.marginAlert.count({ where: { menuItemId, type: 'MARGIN_BELOW_THRESHOLD', status: 'ACTIVE' } }),
+    ).toBe(0);
+
+    // Une correction manuelle du prix d'achat du produit (pas via une
+    // facture) doit aussi être prise en compte : 12€/kg pour 1kg dans la
+    // recette = 12€ de coût pour 10€ de prix de vente → rouge.
+    const productPriceRes = await request(app)
+      .patch(`/api/products/${productId}`)
+      .set('Authorization', `Bearer ${restaurant.accessToken}`)
+      .send({ currentPriceHT: 12 });
+    expect(productPriceRes.status).toBe(200);
+    expect(
+      await prisma.marginAlert.count({ where: { menuItemId, type: 'MARGIN_BELOW_THRESHOLD', status: 'ACTIVE' } }),
+    ).toBe(1);
   });
 
   it('GET /api/alerts respecte l’isolation multi-tenant, PATCH permet de résoudre/ignorer, 404/409 gérés, rôle Service refusé', async () => {
