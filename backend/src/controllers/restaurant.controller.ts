@@ -25,6 +25,7 @@ import { env } from '../config/env';
 import { gatherDashboardData } from './dashboard.controller';
 import { stripe, isBillingConfigured } from '../lib/stripe';
 import { needsStripeCancellation } from './billing.controller';
+import { checkMarginAlertsForMenuItems } from '../lib/marginAlerts';
 
 export async function bootstrap(req: Request, res: Response) {
   const { restaurantName, currency, timezone, gerant } = bootstrapRestaurantSchema.parse(req.body);
@@ -483,6 +484,23 @@ export async function updateThresholds(req: Request, res: Response) {
       priceIncreaseAlertThreshold: true,
     },
   });
+
+  // Changer les seuils ne modifie aucun prix ni aucune recette, mais
+  // reclasse instantanément tous les plats du restaurant (un plat
+  // orange peut devenir rouge si le seuil se resserre, et vice versa)
+  // — le seul des points d'écriture affectant la marge (voir suites 49
+  // à 51) où le changement touche potentiellement TOUS les plats d'un
+  // coup plutôt qu'un seul, d'où la liste complète plutôt qu'un ciblage
+  // par produit/plat.
+  const activeMenuItemIds = await prisma.menuItem.findMany({
+    where: { restaurantId: restaurant.id, isActive: true },
+    select: { id: true },
+  });
+  await checkMarginAlertsForMenuItems(
+    prisma,
+    restaurant.id,
+    activeMenuItemIds.map((m) => m.id),
+  );
 
   res.json({ restaurant });
 }

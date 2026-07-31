@@ -187,6 +187,38 @@ describe('Alertes de marge — génération et consultation', () => {
     ).toBe(1);
   });
 
+  it('resserrer les seuils de marge fait basculer un plat orange en rouge (alerte générée), et les relâcher la résout automatiquement', async () => {
+    const restaurant = await bootstrapRestaurant('E');
+    // 1kg à 3,50€ pour un plat à 10€ TTC : coût 3,50€, marge 65% → orange
+    // par défaut (vert ≥ 70 %, orange 60-70 %), donc aucune alerte au départ.
+    const { menuItemId } = await setupMenuItemWithRecipe(restaurant.accessToken, 3.5, 10);
+    expect(
+      await prisma.marginAlert.count({ where: { menuItemId, type: 'MARGIN_BELOW_THRESHOLD', status: 'ACTIVE' } }),
+    ).toBe(0);
+
+    // Resserrer les seuils (vert 90 %, orange 70 %) fait passer 65 % sous
+    // le nouveau seuil orange → rouge, sans qu'aucun prix n'ait changé.
+    const tightenRes = await request(app)
+      .patch('/api/restaurants/me/thresholds')
+      .set('Authorization', `Bearer ${restaurant.accessToken}`)
+      .send({ marginGreenThreshold: 90, marginOrangeThreshold: 70 });
+    expect(tightenRes.status).toBe(200);
+    expect(
+      await prisma.marginAlert.count({ where: { menuItemId, type: 'MARGIN_BELOW_THRESHOLD', status: 'ACTIVE' } }),
+    ).toBe(1);
+
+    // Relâcher les seuils aux valeurs par défaut résout l'alerte
+    // automatiquement : 65 % redevient acceptable (orange, pas rouge).
+    const loosenRes = await request(app)
+      .patch('/api/restaurants/me/thresholds')
+      .set('Authorization', `Bearer ${restaurant.accessToken}`)
+      .send({ marginGreenThreshold: 70, marginOrangeThreshold: 60 });
+    expect(loosenRes.status).toBe(200);
+    expect(
+      await prisma.marginAlert.count({ where: { menuItemId, type: 'MARGIN_BELOW_THRESHOLD', status: 'ACTIVE' } }),
+    ).toBe(0);
+  });
+
   it('GET /api/alerts respecte l’isolation multi-tenant, PATCH permet de résoudre/ignorer, 404/409 gérés, rôle Service refusé', async () => {
     const restaurantA = await bootstrapRestaurant('C');
     const restaurantB = await bootstrapRestaurant('D');
