@@ -26,7 +26,7 @@ Rôles : **GERANT** (accès total), **CUISINE** (fiches techniques, gaspillage, 
 |---|---|---|---|
 | POST | `/bootstrap` | public | Crée un restaurant + son premier compte Gérant, connecte directement (mêmes tokens qu'un login). `{ restaurantName, currency?, timezone?, gerant: { email, password, firstName, lastName } }` |
 | GET | `/me` | tous | Réglages du restaurant courant (nom, seuils de marge, seuil d'alerte prix) |
-| PATCH | `/me/thresholds` | GERANT | `{ marginGreenThreshold, marginOrangeThreshold }` — seuil vert doit être > seuil orange |
+| PATCH | `/me/thresholds` | GERANT | `{ marginGreenThreshold, marginOrangeThreshold }` — seuil vert doit être > seuil orange. Recalcule aussi les alertes `MARGIN_BELOW_THRESHOLD` sur tous les plats actifs (un plat peut basculer en/hors alerte sans qu'aucun prix ne change) |
 | GET | `/me/export` | GERANT | Export RGPD complet en JSON (restaurant, utilisateurs sans mot de passe, fournisseurs, produits, plats+recettes, factures, commandes, gaspillage, alertes) |
 | DELETE | `/me` | GERANT | Suppression RGPD irréversible. `{ confirmRestaurantName }` doit correspondre exactement au nom du restaurant. `204` |
 
