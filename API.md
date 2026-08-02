@@ -131,6 +131,18 @@ Réservé à GERANT et CUISINE.
 | GET | `/stats` | Stats du mois en cours : total, répartition par motif, par catégorie |
 | POST | `/` | `{ productId XOR menuItemId, quantity, reason }` — valorisation calculée côté serveur (jamais saisie), jamais les deux champs produit/plat à la fois |
 
+## Planning — `/api/planning` (Phase 7, en cours de construction)
+
+Réservé au GERANT (pilotage d'équipe, même périmètre que `/api/users`).
+
+| Méthode | Route | Description |
+|---|---|---|
+| GET | `/availabilities` | Liste des règles de disponibilité (indisponibilité) des employés |
+| POST | `/availabilities` | `{ userId, weekday XOR specificDate, reason? }` — récurrente (jour de semaine) ou ponctuelle (date précise), jamais les deux |
+| DELETE | `/availabilities/:id` | Supprime une règle |
+
+À venir : besoins de staffing, génération et validation du planning, récapitulatif d'heures.
+
 ## Exports et rapports — `/api/exports`, `/api/reports`
 
 Réservé à GERANT.
