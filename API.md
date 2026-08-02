@@ -153,6 +153,27 @@ Frontend : `/planning` (disponibilités, besoins, génération, téléchargement
 
 À venir : ajustement manuel d'un créneau (retard/absence).
 
+## Hygiène — `/api/hygiene` (Phase 7)
+
+Rôles différenciés par sous-ressource (contrairement à Planning, entièrement Gérant) : le contenu de référence et les modèles de checklist sont une décision de pilotage (écriture Gérant uniquement), remplir une checklist de fin de service est un geste opérationnel quotidien ouvert à toute l'équipe.
+
+| Méthode | Route | Rôle | Description |
+|---|---|---|---|
+| GET | `/reference-items` | tous | Liste des rappels/normes (sans les octets média — `hasMedia` seulement) |
+| GET | `/reference-items/:id/media` | tous | Sert l'image du rappel |
+| POST | `/reference-items` | GERANT | `multipart/form-data` : `title`, `content`, `media?` (fichier JPG/PNG optionnel, type réel vérifié par magic bytes) |
+| PATCH | `/reference-items/:id` | GERANT | `multipart/form-data`, mêmes champs, tous optionnels — `media` non fourni conserve le média existant |
+| DELETE | `/reference-items/:id` | GERANT | Suppression définitive (aucune donnée historique n'en dépend) |
+| GET | `/checklist-templates` | tous | Liste des modèles de checklist actifs, avec leurs items ordonnés |
+| POST | `/checklist-templates` | GERANT | `{ name, items: string[] }` — modèle et items créés ensemble, non modifiables ensuite (voir DELETE) |
+| DELETE | `/checklist-templates/:id` | GERANT | Désactive le modèle (`isActive: false`, pas de suppression physique — comme `Supplier.isActive`) ; pour faire évoluer une checklist, désactiver l'ancien modèle et en créer un nouveau |
+| GET | `/checklist-completions` | tous | Liste des complétions (du plus récent au plus ancien) |
+| GET | `/checklist-completions/:id` | tous | Détail d'une complétion, avec ses items et leur état |
+| POST | `/checklist-completions` | tous | `{ templateId, serviceDate }` — démarre une complétion (une ligne par item du modèle, toutes non cochées) ; `404` si le modèle est introuvable ou désactivé |
+| PATCH | `/checklist-completions/:completionId/items/:itemId` | tous | `{ isChecked }` — coche/décoche un item ; `completedAt` recalculé à chaque appel à partir de l'état réel de tous les items (non-null seulement si tous cochés — décocher un item après coup annule la complétion) |
+
+Frontend : `/hygiene` (rappels, modèles, démarrage de checklist) et `/hygiene/completions/:id` (cochage).
+
 ## Exports et rapports — `/api/exports`, `/api/reports`
 
 Réservé à GERANT.
