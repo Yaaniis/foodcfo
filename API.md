@@ -148,7 +148,9 @@ Réservé au GERANT (pilotage d'équipe, même périmètre que `/api/users`).
 | POST | `/schedules/generate` | `{ periodStart, periodEnd }` (dates `YYYY-MM-DD`, période ≤ 31 jours) — génère un planning `DRAFT` à partir des besoins de staffing et des règles de disponibilité déjà saisis, en respectant le socle légal stable (repos quotidien 11h entre deux jours différents, 10h/jour et 48h/semaine maximum). Renvoie `{ schedule, unmetRequirements, employeeIdsWithoutRestDay }` — `unmetRequirements` liste les besoins non couverts (aucun employé éligible ou toutes les contraintes empêchaient l'affectation), `employeeIdsWithoutRestDay` signale les employés sans aucun jour sans créneau sur la période (repos hebdomadaire non garanti) — à vérifier manuellement avant validation, jamais bloquant |
 | POST | `/schedules/:id/validate` | Verrouille le planning : `DRAFT` → `VALIDATED`, irréversible (comme `Invoice.VALIDATED`). `409` si déjà validé |
 
-À venir : ajustement manuel d'un créneau (retard/absence), récapitulatif d'heures pour le comptable, frontend.
+Frontend : `/planning` (disponibilités, besoins, génération) et `/planning/schedules/:id` (détail + validation).
+
+À venir : ajustement manuel d'un créneau (retard/absence), récapitulatif d'heures pour le comptable.
 
 ## Exports et rapports — `/api/exports`, `/api/reports`
 
