@@ -131,7 +131,7 @@ Réservé à GERANT et CUISINE.
 | GET | `/stats` | Stats du mois en cours : total, répartition par motif, par catégorie |
 | POST | `/` | `{ productId XOR menuItemId, quantity, reason }` — valorisation calculée côté serveur (jamais saisie), jamais les deux champs produit/plat à la fois |
 
-## Planning — `/api/planning` (Phase 7, en cours de construction)
+## Planning — `/api/planning` (Phase 7)
 
 Réservé au GERANT (pilotage d'équipe, même périmètre que `/api/users`).
 
@@ -147,10 +147,11 @@ Réservé au GERANT (pilotage d'équipe, même périmètre que `/api/users`).
 | GET | `/schedules/:id` | Détail d'un planning, avec ses créneaux affectés |
 | POST | `/schedules/generate` | `{ periodStart, periodEnd }` (dates `YYYY-MM-DD`, période ≤ 31 jours) — génère un planning `DRAFT` à partir des besoins de staffing et des règles de disponibilité déjà saisis, en respectant le socle légal stable (repos quotidien 11h entre deux jours différents, 10h/jour et 48h/semaine maximum). Renvoie `{ schedule, unmetRequirements, employeeIdsWithoutRestDay }` — `unmetRequirements` liste les besoins non couverts (aucun employé éligible ou toutes les contraintes empêchaient l'affectation), `employeeIdsWithoutRestDay` signale les employés sans aucun jour sans créneau sur la période (repos hebdomadaire non garanti) — à vérifier manuellement avant validation, jamais bloquant |
 | POST | `/schedules/:id/validate` | Verrouille le planning : `DRAFT` → `VALIDATED`, irréversible (comme `Invoice.VALIDATED`). `409` si déjà validé |
+| GET | `/hours-summary.csv` | `?periodStart&periodEnd` (optionnels, défaut : mois calendaire en cours) — export CSV du récapitulatif d'heures par employé (heures normales/supplémentaires, cumulées par semaine ISO au seuil de 35h ; heures dimanche et jours fériés, étiquettes indépendantes sur les mêmes heures) pour transmission au comptable. Remplace volontairement un bulletin de paye légal (décision 7.0). N'inclut que les créneaux des plannings `VALIDATED` (comme `/api/exports/invoices.csv` qui n'inclut que les factures validées) ; utilise les heures réellement effectuées (`actualStartTime`/`actualEndTime`) quand elles ont été corrigées après coup, sinon les heures prévues ; un créneau marqué absent ne compte aucune heure |
 
-Frontend : `/planning` (disponibilités, besoins, génération) et `/planning/schedules/:id` (détail + validation).
+Frontend : `/planning` (disponibilités, besoins, génération, téléchargement du récapitulatif) et `/planning/schedules/:id` (détail + validation).
 
-À venir : ajustement manuel d'un créneau (retard/absence), récapitulatif d'heures pour le comptable.
+À venir : ajustement manuel d'un créneau (retard/absence).
 
 ## Exports et rapports — `/api/exports`, `/api/reports`
 
