@@ -9,6 +9,12 @@ import {
   createStaffingRequirement,
   deleteStaffingRequirement,
 } from '../controllers/staffingRequirement.controller';
+import {
+  listSchedules,
+  getSchedule,
+  generateScheduleForRestaurant,
+  validateSchedule,
+} from '../controllers/schedule.controller';
 import { requireAuth } from '../middleware/auth';
 import { requireRole } from '../middleware/requireRole';
 import { asyncHandler } from '../utils/asyncHandler';
@@ -28,3 +34,8 @@ planningRouter.delete('/availabilities/:id', asyncHandler(deleteEmployeeAvailabi
 planningRouter.get('/staffing-requirements', asyncHandler(listStaffingRequirements));
 planningRouter.post('/staffing-requirements', asyncHandler(createStaffingRequirement));
 planningRouter.delete('/staffing-requirements/:id', asyncHandler(deleteStaffingRequirement));
+
+planningRouter.get('/schedules', asyncHandler(listSchedules));
+planningRouter.get('/schedules/:id', asyncHandler(getSchedule));
+planningRouter.post('/schedules/generate', asyncHandler(generateScheduleForRestaurant));
+planningRouter.post('/schedules/:id/validate', asyncHandler(validateSchedule));
