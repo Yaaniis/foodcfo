@@ -174,6 +174,27 @@ Rôles différenciés par sous-ressource (contrairement à Planning, entièremen
 
 Frontend : `/hygiene` (rappels, modèles, démarrage de checklist) et `/hygiene/completions/:id` (cochage).
 
+## Contrôle — `/api/control` (Phase 7)
+
+Réservé au GERANT (décision de pilotage administratif, contrairement à Hygiène où les checklists sont ouvertes à l'équipe).
+
+| Méthode | Route | Description |
+|---|---|---|
+| GET | `/documents` | `?organism?` (filtre optionnel) — liste des documents déposés (sans les octets bruts) |
+| GET | `/documents/:id/file` | Sert le fichier |
+| POST | `/documents` | `multipart/form-data` : `organism` (`URSSAF`\|`DDPP`\|`DGCCRF`\|`DGFIP`\|`INSPECTION_TRAVAIL`), `category`, `label`, `file` (PDF/JPG/PNG, type réel vérifié par magic bytes) |
+| DELETE | `/documents/:id` | Suppression définitive |
+| GET | `/dossier/:organism` | `?periodStart&periodEnd` (optionnels, défaut : mois calendaire en cours) — agrège les documents déposés pour cet organisme + les données déjà en base quand pertinent, jamais dupliquées : `hoursSummary` (récapitulatif d'heures, réutilise `lib/hoursSummary.ts`) pour `URSSAF`/`INSPECTION_TRAVAIL`, `cleaningHistory` (historique des checklists) pour `DDPP` ; `undefined` pour `DGCCRF`/`DGFIP` (aucune donnée auto-tirée pertinente identifiée) |
+
+Catégories de documents suggérées par organisme (aide à la saisie côté frontend, `category` reste une chaîne libre côté serveur — la liste précise reste à affiner avec l'usage réel) :
+- **URSSAF** : contrat de travail, registre unique du personnel, bulletin de paye, avenant, déclaration sociale (DSN)
+- **DDPP** : PMS, relevé de température, attestation de formation HACCP, plan de nettoyage, traçabilité produits
+- **DGCCRF** : affichage des prix, étiquetage allergènes, origine des viandes, facture fournisseur, réclamation client
+- **DGFiP** : attestation logiciel de caisse (NF525), facture de vente, déclaration de TVA, livre de recettes
+- **Inspection du travail** : contrat de travail, registre unique du personnel, affichage obligatoire, DUERP, règlement intérieur
+
+Frontend : `/control` (grille des 5 organismes) et `/control/:organism` (dossier + dépôt de documents). Pas de vrais logos officiels affichés (droits/risque de laisser penser à un partenariat — décision 7.0) : badges typographiques neutres à la place.
+
 ## Exports et rapports — `/api/exports`, `/api/reports`
 
 Réservé à GERANT.
