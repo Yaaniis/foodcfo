@@ -138,14 +138,55 @@ enum SubscriptionStatus {
 }
 
 // ============================================================================
+// PHASE 7 — ENUMS (Planning, Hygiène, Contrôle — 31/07/2026)
+// ============================================================================
+
+// Jour de la semaine pour les règles récurrentes (disponibilités,
+// besoins de staffing). Enum plutôt qu'un entier brut (0-6) : évite toute
+// ambiguïté sur le jour représenté par 0, cohérent avec le reste du
+// fichier qui préfère des enums explicites aux valeurs magiques.
+enum Weekday {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+// DRAFT = généré automatiquement, pas encore vu par un humain ou en
+// cours d'ajustement. VALIDATED = confirmé par le restaurateur, devient
+// la version définitive transmise aux équipes. Jamais l'inverse : une
+// fois validé, on ne repasse pas en brouillon (on génère un nouveau
+// planning si besoin) — même philosophie que InvoiceStatus.VALIDATED
+// (Phase 3), verrouillé côté serveur une fois franchi.
+enum ScheduleStatus {
+  DRAFT
+  VALIDATED
+}
+
+// Les organismes qui contrôlent réellement un restaurant en France
+// (identifiés et expliqués à l'utilisateur avant cadrage, voir journal
+// du 31/07/2026). Enum plutôt qu'une table : liste fixe et réglementaire,
+// même raisonnement que Allergen ci-dessus.
+enum ControlOrganism {
+  URSSAF
+  DDPP
+  DGCCRF
+  DGFIP
+  INSPECTION_TRAVAIL
+}
+
+// ============================================================================
 // RESTAURANT — racine du multi-tenant
 // ============================================================================
 
 model Restaurant {
-  id        String   @id @default(uuid())
-  name      String
-  currency  String   @default("EUR")
-  timezone  String   @default("Europe/Paris")
+  id       String @id @default(uuid())
+  name     String
+  currency String @default("EUR")
+  timezone String @default("Europe/Paris")
 
   // Seuils de marge par défaut : vert ≥ marginGreenThreshold,
   // orange entre marginOrangeThreshold et marginGreenThreshold,
@@ -181,6 +222,15 @@ model Restaurant {
   wasteEntries WasteEntry[]
   marginAlerts MarginAlert[]
 
+  // Phase 7 (31/07/2026)
+  employeeAvailabilities       EmployeeAvailability[]
+  staffingRequirements         StaffingRequirement[]
+  schedules                    Schedule[]
+  hygieneReferenceItems        HygieneReferenceItem[]
+  cleaningChecklistTemplates   CleaningChecklistTemplate[]
+  cleaningChecklistCompletions CleaningChecklistCompletion[]
+  controlDocuments             ControlDocument[]
+
   @@map("restaurants")
 }
 
@@ -189,7 +239,7 @@ model Restaurant {
 // ============================================================================
 
 model User {
-  id           String   @id @default(uuid())
+  id           String     @id @default(uuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
@@ -212,6 +262,16 @@ model User {
   refreshTokens RefreshToken[]
   wasteEntries  WasteEntry[]
 
+  // Phase 7 (31/07/2026) — voir le commentaire sur ShiftAssignment.userId
+  // (onDelete: Restrict) : un utilisateur ayant des heures de travail
+  // enregistrées ne peut pas être supprimé directement (registre légal),
+  // contrairement à ses simples règles de disponibilité (Cascade).
+  employeeAvailabilities       EmployeeAvailability[]
+  shiftAssignments             ShiftAssignment[]
+  validatedSchedules           Schedule[]
+  cleaningChecklistCompletions CleaningChecklistCompletion[]
+  controlDocuments             ControlDocument[]
+
   // L'email doit être unique par restaurant (pas globalement : deux
   // restaurants distincts pourraient en théorie avoir un utilisateur
   // avec la même adresse email s'ils sont gérés séparément — rare, mais
@@ -224,11 +284,11 @@ model User {
 // Refresh tokens stockés en base pour pouvoir les révoquer individuellement
 // (déconnexion, changement de mot de passe, compromission suspectée).
 model RefreshToken {
-  id        String   @id @default(uuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  tokenHash String   @unique
+  tokenHash String    @unique
   expiresAt DateTime
   revokedAt DateTime?
 
@@ -250,7 +310,7 @@ model PasswordResetToken {
   expiresAt DateTime
   usedAt    DateTime?
 
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
 
   @@index([email])
   @@map("password_reset_tokens")
@@ -261,25 +321,25 @@ model PasswordResetToken {
 // ============================================================================
 
 model Supplier {
-  id           String   @id @default(uuid())
+  id           String     @id @default(uuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
-  name            String
-  category        String       // libre (ex: "Boucherie", "Poissonnerie", "Grossiste")
+  name             String
+  category         String // libre (ex: "Boucherie", "Poissonnerie", "Grossiste")
   preferredChannel OrderChannel
-  contactEmail    String?
-  contactPhone    String?
-  notes           String?
+  contactEmail     String?
+  contactPhone     String?
+  notes            String?
 
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  products      Product[]
-  priceHistory  PriceHistory[]
-  invoices      Invoice[]
-  orders        Order[]
+  products     Product[]
+  priceHistory PriceHistory[]
+  invoices     Invoice[]
+  orders       Order[]
 
   @@index([restaurantId])
   @@map("suppliers")
@@ -290,7 +350,7 @@ model Supplier {
 // ============================================================================
 
 model Product {
-  id           String   @id @default(uuid())
+  id           String     @id @default(uuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
@@ -325,9 +385,9 @@ model Product {
 // ============================================================================
 
 model PriceHistory {
-  id         String   @id @default(uuid())
-  productId  String
-  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  id        String  @id @default(uuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   supplierId String
   supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
@@ -352,16 +412,16 @@ model PriceHistory {
 // ============================================================================
 
 model MenuItem {
-  id           String   @id @default(uuid())
+  id           String     @id @default(uuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
-  name             String
-  category         String   // libre (ex: "Entrées", "Plats", "Desserts", "Boissons")
-  sellingPriceTTC  Decimal  @db.Decimal(10, 2)
-  vatRate          VatRate
-  isActive         Boolean  @default(true)
-  allergens        Allergen[]
+  name            String
+  category        String // libre (ex: "Entrées", "Plats", "Desserts", "Boissons")
+  sellingPriceTTC Decimal    @db.Decimal(10, 2)
+  vatRate         VatRate
+  isActive        Boolean    @default(true)
+  allergens       Allergen[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -424,7 +484,7 @@ model RecipeIngredient {
 // ============================================================================
 
 model Invoice {
-  id           String   @id @default(uuid())
+  id           String     @id @default(uuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
@@ -480,9 +540,9 @@ model InvoiceLineItem {
   // toujours conservé même après rapprochement, pour audit.
   rawLabel String
 
-  quantity       Decimal @db.Decimal(10, 4)
-  unitPriceHT    Decimal @db.Decimal(10, 4)
-  totalPriceHT   Decimal @db.Decimal(10, 2)
+  quantity     Decimal @db.Decimal(10, 4)
+  unitPriceHT  Decimal @db.Decimal(10, 4)
+  totalPriceHT Decimal @db.Decimal(10, 2)
 
   // A été revu/corrigé manuellement par un utilisateur avant validation ?
   wasManuallyEdited Boolean @default(false)
@@ -499,14 +559,14 @@ model InvoiceLineItem {
 // ============================================================================
 
 model Order {
-  id           String   @id @default(uuid())
+  id           String     @id @default(uuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
   supplierId String
   supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
 
-  status OrderStatus @default(DRAFT)
+  status      OrderStatus @default(DRAFT)
   sentAt      DateTime?
   confirmedAt DateTime?
   deliveredAt DateTime?
@@ -546,7 +606,7 @@ model OrderLineItem {
 // ============================================================================
 
 model WasteEntry {
-  id           String   @id @default(uuid())
+  id           String     @id @default(uuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
@@ -559,9 +619,9 @@ model WasteEntry {
   menuItemId String?
   menuItem   MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
 
-  quantity        Decimal     @db.Decimal(10, 4)
-  estimatedValue  Decimal     @db.Decimal(10, 2)
-  reason          WasteReason
+  quantity       Decimal     @db.Decimal(10, 4)
+  estimatedValue Decimal     @db.Decimal(10, 2)
+  reason         WasteReason
 
   declaredById String
   declaredBy   User   @relation(fields: [declaredById], references: [id], onDelete: Restrict)
@@ -579,7 +639,7 @@ model WasteEntry {
 // ============================================================================
 
 model MarginAlert {
-  id           String   @id @default(uuid())
+  id           String     @id @default(uuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
@@ -594,7 +654,7 @@ model MarginAlert {
   thresholdValue Decimal @db.Decimal(10, 4)
   currentValue   Decimal @db.Decimal(10, 4)
 
-  message String  // message lisible généré à la création, pas recalculé à l'affichage
+  message String // message lisible généré à la création, pas recalculé à l'affichage
 
   createdAt  DateTime  @default(now())
   resolvedAt DateTime?
@@ -603,4 +663,290 @@ model MarginAlert {
   // tableau de bord.
   @@index([restaurantId, status])
   @@map("margin_alerts")
+}
+
+// ============================================================================
+// PHASE 7 — PLANNING (31/07/2026)
+// ============================================================================
+// Cadrage complet dans FoodCFO_PLAN.md (section "PHASE 7") et le journal
+// de bord (entrée du 31/07/2026) : le restaurateur saisit ses besoins de
+// staffing et les règles de disponibilité de ses employés, un générateur
+// propose un planning complet respectant ces contraintes + le socle
+// légal stable (repos quotidien/hebdomadaire, durées maximales), puis un
+// humain valide ou ajuste avant que ça devienne définitif — jamais
+// appliqué sans validation humaine (même principe que l'extraction IA
+// des factures, Phase 3).
+
+// Une règle = une indisponibilité (le défaut est "disponible" ; on ne
+// modélise que les exceptions, pas des fenêtres de disponibilité
+// complexes — plus simple et suffisant pour ce qui a été demandé).
+// Récurrente (weekday renseigné, ex: "tous les mercredis") ou ponctuelle
+// (specificDate renseigné, ex: "le 15 août"), jamais les deux à la fois —
+// contrainte applicative (comme WasteEntry.productId/menuItemId
+// ci-dessus), pas modélisable proprement en Prisma seul.
+model EmployeeAvailability {
+  id           String     @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  weekday      Weekday?
+  specificDate DateTime?
+  reason       String?
+
+  createdAt DateTime @default(now())
+
+  @@index([restaurantId, userId])
+  @@map("employee_availabilities")
+}
+
+// Gabarit hebdomadaire des besoins de couverture (ex: "tous les lundis,
+// service midi 11h-15h, il faut 2 CUISINE + 1 SERVICE") — réutilisé
+// d'une semaine sur l'autre par le générateur plutôt que ressaisi à
+// chaque fois, cohérent avec le fonctionnement réel d'un restaurant où
+// le besoin de base change rarement.
+model StaffingRequirement {
+  id           String     @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  weekday       Weekday
+  role          UserRole
+  startTime     DateTime @db.Time
+  endTime       DateTime @db.Time
+  requiredCount Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([restaurantId, weekday])
+  @@map("staffing_requirements")
+}
+
+// Un planning généré pour une période donnée (typiquement une semaine).
+// DRAFT tant que le restaurateur ne l'a pas validé — jamais transmis aux
+// équipes tel quel avant validation humaine explicite.
+model Schedule {
+  id           String     @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  periodStart DateTime
+  periodEnd   DateTime
+  status      ScheduleStatus @default(DRAFT)
+
+  // Secondaire (traçabilité "qui a validé"), pas le cœur de la donnée —
+  // SetNull plutôt que Restrict : si l'utilisateur qui a validé est
+  // supprimé plus tard, le planning validé reste valide et exploitable,
+  // contrairement aux ShiftAssignment qui sont eux le registre légal des
+  // heures réellement travaillées (Restrict, voir ci-dessous).
+  validatedById String?
+  validatedBy   User?     @relation(fields: [validatedById], references: [id], onDelete: SetNull)
+  validatedAt   DateTime?
+
+  generatedAt DateTime @default(now())
+
+  shiftAssignments ShiftAssignment[]
+
+  @@index([restaurantId, periodStart])
+  @@map("schedules")
+}
+
+// Une ligne = un créneau travaillé par un employé. `wasManuallyAdjusted`
+// permet de mesurer dans le temps la fiabilité du générateur (combien de
+// créneaux proposés sont acceptés tels quels vs modifiés à la main).
+// `actualStartTime`/`actualEndTime`/`isAbsent` permettent de corriger
+// après coup (retard, absence) sans perdre la trace de ce qui était
+// prévu à l'origine — c'est la version "actuelle" qui alimente le
+// récapitulatif d'heures pour le comptable, jamais la version prévue
+// seule.
+model ShiftAssignment {
+  id         String   @id @default(uuid())
+  scheduleId String
+  schedule   Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  // Restrict, pas Cascade : une ligne de planning devenue un créneau
+  // réellement travaillé est un registre d'heures, potentiellement
+  // demandé lors d'un contrôle Inspection du travail/URSSAF (Phase 7.4)
+  // — même logique que WasteEntry.declaredBy. Supprimer un utilisateur
+  // ayant des heures enregistrées n'est possible qu'en désactivant son
+  // compte (isActive, déjà le mécanisme existant partout ailleurs), pas
+  // en le supprimant réellement, sauf suppression RGPD complète du
+  // restaurant (deleteRestaurant devra supprimer les ShiftAssignment
+  // avant les User, comme il le fait déjà pour WasteEntry).
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  role      UserRole
+  date      DateTime
+  startTime DateTime @db.Time
+  endTime   DateTime @db.Time
+
+  wasManuallyAdjusted Boolean   @default(false)
+  actualStartTime     DateTime? @db.Time
+  actualEndTime       DateTime? @db.Time
+  isAbsent            Boolean   @default(false)
+  absenceNote         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([scheduleId])
+  @@index([userId, date])
+  @@map("shift_assignments")
+}
+
+// ============================================================================
+// PHASE 7 — HYGIÈNE (31/07/2026)
+// ============================================================================
+// Deux fonctionnalités distinctes dans une même rubrique : du contenu de
+// référence (rappels/normes, fourni par le restaurateur, pas généré) et
+// une checklist de fin de service cochable.
+
+// Un rappel/une norme, avec média optionnel. Stocké en base (Bytes),
+// même choix que Invoice.sourceFileData : le service backend Railway n'a
+// aucun volume persistant, un fichier écrit sur disque serait perdu au
+// prochain redéploiement — et ça reste couvert par les sauvegardes
+// automatiques existantes, contrairement à un stockage disque.
+model HygieneReferenceItem {
+  id           String     @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  title   String
+  content String
+
+  mediaData     Bytes?
+  mediaMimeType String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([restaurantId])
+  @@map("hygiene_reference_items")
+}
+
+// Le gabarit de checklist (ex: "Fin de service midi", "Fin de service
+// soir") — un restaurant peut en avoir plusieurs selon le service/la
+// zone. Rempli une fois, réutilisé à chaque complétion, comme Recipe
+// pour les fiches techniques.
+model CleaningChecklistTemplate {
+  id           String     @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items       CleaningChecklistTemplateItem[]
+  completions CleaningChecklistCompletion[]
+
+  @@index([restaurantId])
+  @@map("cleaning_checklist_templates")
+}
+
+model CleaningChecklistTemplateItem {
+  id         String                    @id @default(uuid())
+  templateId String
+  template   CleaningChecklistTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  label String
+  order Int
+
+  completionItems CleaningChecklistCompletionItem[]
+
+  @@index([templateId])
+  @@map("cleaning_checklist_template_items")
+}
+
+// Une complétion = une exécution réelle du gabarit pour un service
+// donné. `completedAt` reste null tant que tous les items ne sont pas
+// cochés — c'est justement le but demandé : pas de doute possible sur un
+// élément oublié, la complétion n'est "faite" que si tout y est.
+model CleaningChecklistCompletion {
+  id           String     @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  templateId String
+  // Restrict : l'historique de complétion (potentiellement demandé lors
+  // d'un contrôle DDPP, Phase 7.4) doit survivre même si le gabarit
+  // évolue — on ne supprime pas un gabarit déjà utilisé, comme Product
+  // vis-à-vis de RecipeIngredient.
+  template   CleaningChecklistTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+
+  serviceDate DateTime
+
+  // Restrict, même raisonnement que WasteEntry.declaredBy et
+  // ShiftAssignment.userId : registre potentiellement demandé en
+  // contrôle, pas supprimable via un simple hard-delete utilisateur.
+  completedById String
+  completedBy   User   @relation(fields: [completedById], references: [id], onDelete: Restrict)
+
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  items CleaningChecklistCompletionItem[]
+
+  @@index([restaurantId, serviceDate])
+  @@map("cleaning_checklist_completions")
+}
+
+model CleaningChecklistCompletionItem {
+  id           String                      @id @default(uuid())
+  completionId String
+  completion   CleaningChecklistCompletion @relation(fields: [completionId], references: [id], onDelete: Cascade)
+
+  templateItemId String
+  templateItem   CleaningChecklistTemplateItem @relation(fields: [templateItemId], references: [id], onDelete: Restrict)
+
+  isChecked Boolean   @default(false)
+  checkedAt DateTime?
+
+  @@unique([completionId, templateItemId])
+  @@index([completionId])
+  @@map("cleaning_checklist_completion_items")
+}
+
+// ============================================================================
+// PHASE 7 — CONTRÔLE (31/07/2026)
+// ============================================================================
+// Espace de dépôt de documents, catégorisé par organisme de contrôle.
+// Le "dossier" présenté au restaurateur (Phase 7.4) n'est pas un modèle
+// à part : c'est une agrégation à la lecture de ces documents déposés +
+// des données déjà en base ailleurs (récapitulatif d'heures de
+// ShiftAssignment pour URSSAF/Inspection du travail, historique de
+// CleaningChecklistCompletion pour DDPP) — pas de duplication de données.
+model ControlDocument {
+  id           String     @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  organism ControlOrganism
+  // Libre plutôt qu'un enum : les catégories exactes par organisme sont
+  // encore en cours de définition (voir FoodCFO_PLAN.md, Phase 7.4) et
+  // vont probablement évoluer — un enum figerait la liste et demanderait
+  // une migration à chaque ajustement, alors qu'un champ texte suffit
+  // (même raisonnement que Supplier.category).
+  category String
+  label    String
+
+  fileData     Bytes
+  fileMimeType String
+
+  // Restrict, même raisonnement que les autres champs "qui a fait cette
+  // action" de la Phase 7 : un document déposé en vue d'un contrôle ne
+  // doit pas disparaître silencieusement si l'utilisateur qui l'a
+  // déposé est supprimé.
+  uploadedById String
+  uploadedBy   User   @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  uploadedAt DateTime @default(now())
+
+  @@index([restaurantId, organism])
+  @@map("control_documents")
 }
