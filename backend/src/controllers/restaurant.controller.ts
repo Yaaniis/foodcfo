@@ -198,9 +198,11 @@ export async function exportRestaurantData(req: Request, res: Response) {
 // L'ordre de suppression est explicite et déterministe plutôt que de se
 // fier à la seule cascade de `restaurant.delete()` : plusieurs relations
 // du schéma sont volontairement en onDelete: Restrict (RecipeIngredient
-// et OrderLineItem vers Product, WasteEntry.declaredBy vers User) pour
-// ne jamais perdre silencieusement une référence historique — il faut
-// donc vider ces tables en premier, dans le bon ordre, avant que la
+// et OrderLineItem vers Product, WasteEntry.declaredBy vers User, et
+// depuis la Phase 7 : ShiftAssignment.userId, CleaningChecklistCompletion
+// .completedById et ControlDocument.uploadedById vers User également)
+// pour ne jamais perdre silencieusement une référence historique — il
+// faut donc vider ces tables en premier, dans le bon ordre, avant que la
 // cascade sur Restaurant puisse atteindre Product/Supplier/User.
 export async function deleteRestaurant(req: Request, res: Response) {
   const { confirmRestaurantName } = deleteRestaurantSchema.parse(req.body);
@@ -244,7 +246,11 @@ export async function deleteRestaurant(req: Request, res: Response) {
     prisma.invoice.deleteMany({ where: { restaurantId } }), // cascade → InvoiceLineItem
     prisma.product.deleteMany({ where: { restaurantId } }), // cascade → PriceHistory ; sûr maintenant que RecipeIngredient/OrderLineItem sont vides
     prisma.supplier.deleteMany({ where: { restaurantId } }), // sûr maintenant que Product/Order sont vides
-    prisma.user.deleteMany({ where: { restaurantId } }), // cascade → RefreshToken ; sûr maintenant que WasteEntry est vide
+    prisma.schedule.deleteMany({ where: { restaurantId } }), // cascade → ShiftAssignment
+    prisma.cleaningChecklistCompletion.deleteMany({ where: { restaurantId } }), // cascade → CleaningChecklistCompletionItem
+    prisma.cleaningChecklistTemplate.deleteMany({ where: { restaurantId } }), // cascade → CleaningChecklistTemplateItem ; sûr maintenant que CleaningChecklistCompletionItem est vide
+    prisma.controlDocument.deleteMany({ where: { restaurantId } }),
+    prisma.user.deleteMany({ where: { restaurantId } }), // cascade → RefreshToken, EmployeeAvailability ; sûr maintenant que WasteEntry/ShiftAssignment/CleaningChecklistCompletion/ControlDocument sont vides
     prisma.restaurant.delete({ where: { id: restaurantId } }),
   ]);
 

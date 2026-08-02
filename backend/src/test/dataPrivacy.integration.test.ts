@@ -6,10 +6,12 @@ import { prisma } from '../lib/prisma';
 // Opération irréversible : ces tests couvrent volontairement un
 // maximum de cas, y compris un scénario de suppression avec des
 // données dans TOUTES les tables sensibles aux contraintes Restrict
-// (RecipeIngredient/OrderLineItem → Product, WasteEntry → User) —
-// c'est exactement le cas qui avait cassé le nettoyage des tests des
-// Phases 4 et 5 avant correction, donc le cas le plus important à
-// valider ici.
+// (RecipeIngredient/OrderLineItem → Product, WasteEntry → User, et
+// depuis la Phase 7 : ShiftAssignment/CleaningChecklistCompletion/
+// ControlDocument → User) — c'est exactement le cas qui avait cassé le
+// nettoyage des tests des Phases 4 et 5 avant correction, puis à nouveau
+// celui de schedule.integration.test.ts lors de l'ajout de la Phase 7
+// (voir FoodCFO_JOURNAL.md), donc le cas le plus important à valider ici.
 describe('RGPD — export et suppression des données sur demande', () => {
   const suffix = Date.now();
   const createdRestaurantIds: string[] = [];
@@ -28,7 +30,7 @@ describe('RGPD — export et suppression des données sur demande', () => {
         acceptTerms: true,
       });
     createdRestaurantIds.push(res.body.user.restaurantId as string);
-    return res.body as { accessToken: string; user: { restaurantId: string } };
+    return res.body as { accessToken: string; user: { id: string; restaurantId: string } };
   }
 
   afterAll(async () => {
@@ -93,7 +95,7 @@ describe('RGPD — export et suppression des données sur demande', () => {
       expect(stillExists).not.toBeNull();
     });
 
-    it('supprime intégralement un restaurant avec des données dans toutes les tables sensibles (Order, MenuItem+Recipe, WasteEntry, Invoice) sans violation de contrainte', async () => {
+    it('supprime intégralement un restaurant avec des données dans toutes les tables sensibles (Order, MenuItem+Recipe, WasteEntry, Invoice, Schedule/ShiftAssignment, CleaningChecklistCompletion, ControlDocument) sans violation de contrainte', async () => {
       const restaurant = await bootstrapRestaurant('D');
       const token = restaurant.accessToken;
 
@@ -141,6 +143,64 @@ describe('RGPD — export et suppression des données sur demande', () => {
         .send({ rawLabel: 'Produit RGPD', productId, quantity: 1, unitPriceHT: 10, totalPriceHT: 10 });
       await request(app).post(`/api/invoices/${uploadRes.body.invoice.id}/validate`).set('Authorization', `Bearer ${token}`);
 
+      // Un planning généré avec un créneau affecté (Schedule →
+      // ShiftAssignment.userId → User, Restrict) — créé directement en
+      // base plutôt que via /api/planning/schedules/generate pour ne
+      // pas dépendre de l'alignement jour de semaine/date ici, seule la
+      // présence de la ligne ShiftAssignment important pour ce test.
+      const schedule = await prisma.schedule.create({
+        data: {
+          restaurantId: restaurant.user.restaurantId,
+          periodStart: new Date('2026-08-03T00:00:00.000Z'),
+          periodEnd: new Date('2026-08-03T00:00:00.000Z'),
+          shiftAssignments: {
+            create: [
+              {
+                userId: restaurant.user.id,
+                role: 'GERANT',
+                date: new Date('2026-08-03T00:00:00.000Z'),
+                startTime: new Date(Date.UTC(1970, 0, 1, 11, 0)),
+                endTime: new Date(Date.UTC(1970, 0, 1, 15, 0)),
+              },
+            ],
+          },
+        },
+      });
+
+      // Une checklist de fin de service complétée
+      // (CleaningChecklistCompletion.completedById → User, Restrict).
+      const template = await prisma.cleaningChecklistTemplate.create({
+        data: {
+          restaurantId: restaurant.user.restaurantId,
+          name: 'Fin de service midi',
+          items: { create: [{ label: 'Nettoyer le plan de travail', order: 1 }] },
+        },
+        include: { items: true },
+      });
+      await prisma.cleaningChecklistCompletion.create({
+        data: {
+          restaurantId: restaurant.user.restaurantId,
+          templateId: template.id,
+          serviceDate: new Date('2026-08-03T00:00:00.000Z'),
+          completedById: restaurant.user.id,
+          items: { create: [{ templateItemId: template.items[0].id, isChecked: true, checkedAt: new Date() }] },
+        },
+      });
+
+      // Un document déposé pour un contrôle
+      // (ControlDocument.uploadedById → User, Restrict).
+      await prisma.controlDocument.create({
+        data: {
+          restaurantId: restaurant.user.restaurantId,
+          organism: 'URSSAF',
+          category: 'Registre du personnel',
+          label: 'Document RGPD',
+          fileData: Buffer.from('contenu factice'),
+          fileMimeType: 'application/pdf',
+          uploadedById: restaurant.user.id,
+        },
+      });
+
       const deleteRes = await request(app)
         .delete('/api/restaurants/me')
         .set('Authorization', `Bearer ${token}`)
@@ -154,6 +214,10 @@ describe('RGPD — export et suppression des données sur demande', () => {
       expect(productGone).toBeNull();
       const supplierGone = await prisma.supplier.findUnique({ where: { id: supplier.body.supplier.id } });
       expect(supplierGone).toBeNull();
+      const scheduleGone = await prisma.schedule.findUnique({ where: { id: schedule.id } });
+      expect(scheduleGone).toBeNull();
+      const templateGone = await prisma.cleaningChecklistTemplate.findUnique({ where: { id: template.id } });
+      expect(templateGone).toBeNull();
     });
 
     it('réservé au Gérant : un compte Cuisine ne peut pas supprimer le restaurant', async () => {
