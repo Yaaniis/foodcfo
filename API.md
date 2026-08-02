@@ -143,8 +143,12 @@ Réservé au GERANT (pilotage d'équipe, même périmètre que `/api/users`).
 | GET | `/staffing-requirements` | Liste des besoins de staffing (gabarit hebdomadaire) |
 | POST | `/staffing-requirements` | `{ weekday, role, startTime, endTime, requiredCount }` — heures au format `HH:mm`, `endTime` doit être après `startTime` |
 | DELETE | `/staffing-requirements/:id` | Supprime un besoin |
+| GET | `/schedules` | Liste des plannings générés (du plus récent au plus ancien) |
+| GET | `/schedules/:id` | Détail d'un planning, avec ses créneaux affectés |
+| POST | `/schedules/generate` | `{ periodStart, periodEnd }` (dates `YYYY-MM-DD`, période ≤ 31 jours) — génère un planning `DRAFT` à partir des besoins de staffing et des règles de disponibilité déjà saisis, en respectant le socle légal stable (repos quotidien 11h entre deux jours différents, 10h/jour et 48h/semaine maximum). Renvoie `{ schedule, unmetRequirements, employeeIdsWithoutRestDay }` — `unmetRequirements` liste les besoins non couverts (aucun employé éligible ou toutes les contraintes empêchaient l'affectation), `employeeIdsWithoutRestDay` signale les employés sans aucun jour sans créneau sur la période (repos hebdomadaire non garanti) — à vérifier manuellement avant validation, jamais bloquant |
+| POST | `/schedules/:id/validate` | Verrouille le planning : `DRAFT` → `VALIDATED`, irréversible (comme `Invoice.VALIDATED`). `409` si déjà validé |
 
-À venir : génération et validation du planning, récapitulatif d'heures.
+À venir : ajustement manuel d'un créneau (retard/absence), récapitulatif d'heures pour le comptable, frontend.
 
 ## Exports et rapports — `/api/exports`, `/api/reports`
 
