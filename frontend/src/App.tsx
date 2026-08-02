@@ -23,6 +23,8 @@ import AlertsPage from './pages/AlertsPage';
 import ReportsPage from './pages/ReportsPage';
 import ConsolidatedPage from './pages/ConsolidatedPage';
 import BillingPage from './pages/BillingPage';
+import PlanningPage from './pages/PlanningPage';
+import ScheduleDetailPage from './pages/ScheduleDetailPage';
 import MentionsLegalesPage from './pages/legal/MentionsLegalesPage';
 import CGUPage from './pages/legal/CGUPage';
 import ConfidentialitePage from './pages/legal/ConfidentialitePage';
@@ -53,6 +55,8 @@ function App() {
               <Route path="/consolidated" element={<ConsolidatedPage />} />
               <Route path="/billing" element={<BillingPage />} />
               <Route path="/restaurant-settings" element={<RestaurantSettingsPage />} />
+              <Route path="/planning" element={<PlanningPage />} />
+              <Route path="/planning/schedules/:scheduleId" element={<ScheduleDetailPage />} />
             </Route>
 
             {/* La carte est ouverte en lecture au Service (décision 0.5 :
