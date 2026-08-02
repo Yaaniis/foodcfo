@@ -4,6 +4,11 @@ import {
   createEmployeeAvailability,
   deleteEmployeeAvailability,
 } from '../controllers/availability.controller';
+import {
+  listStaffingRequirements,
+  createStaffingRequirement,
+  deleteStaffingRequirement,
+} from '../controllers/staffingRequirement.controller';
 import { requireAuth } from '../middleware/auth';
 import { requireRole } from '../middleware/requireRole';
 import { asyncHandler } from '../utils/asyncHandler';
@@ -19,3 +24,7 @@ planningRouter.use(requireAuth, requireRole('GERANT'));
 planningRouter.get('/availabilities', asyncHandler(listEmployeeAvailabilities));
 planningRouter.post('/availabilities', asyncHandler(createEmployeeAvailability));
 planningRouter.delete('/availabilities/:id', asyncHandler(deleteEmployeeAvailability));
+
+planningRouter.get('/staffing-requirements', asyncHandler(listStaffingRequirements));
+planningRouter.post('/staffing-requirements', asyncHandler(createStaffingRequirement));
+planningRouter.delete('/staffing-requirements/:id', asyncHandler(deleteStaffingRequirement));
