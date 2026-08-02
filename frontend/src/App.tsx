@@ -27,6 +27,8 @@ import PlanningPage from './pages/PlanningPage';
 import ScheduleDetailPage from './pages/ScheduleDetailPage';
 import HygienePage from './pages/HygienePage';
 import ChecklistCompletionPage from './pages/ChecklistCompletionPage';
+import ControlPage from './pages/ControlPage';
+import ControlOrganismPage from './pages/ControlOrganismPage';
 import MentionsLegalesPage from './pages/legal/MentionsLegalesPage';
 import CGUPage from './pages/legal/CGUPage';
 import ConfidentialitePage from './pages/legal/ConfidentialitePage';
@@ -59,6 +61,8 @@ function App() {
               <Route path="/restaurant-settings" element={<RestaurantSettingsPage />} />
               <Route path="/planning" element={<PlanningPage />} />
               <Route path="/planning/schedules/:scheduleId" element={<ScheduleDetailPage />} />
+              <Route path="/control" element={<ControlPage />} />
+              <Route path="/control/:organism" element={<ControlOrganismPage />} />
             </Route>
 
             {/* La carte est ouverte en lecture au Service (décision 0.5 :

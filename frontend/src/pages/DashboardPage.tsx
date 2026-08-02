@@ -334,6 +334,11 @@ export default function DashboardPage() {
             </Link>
           )}
           {user?.role === 'GERANT' && (
+            <Link to="/control" className="inline-block mr-6 text-slate-900 font-medium underline">
+              Contrôle →
+            </Link>
+          )}
+          {user?.role === 'GERANT' && (
             <Link to="/reports" className="inline-block mr-6 text-slate-900 font-medium underline">
               Rapports et exports →
             </Link>
