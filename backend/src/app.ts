@@ -31,6 +31,7 @@ import { reportRouter } from './routes/report.routes';
 import { billingRouter } from './routes/billing.routes';
 import { alertRouter } from './routes/alert.routes';
 import { planningRouter } from './routes/planning.routes';
+import { hygieneRouter } from './routes/hygiene.routes';
 import { handleStripeWebhook } from './controllers/billing.controller';
 import { requireAuth } from './middleware/auth';
 import { errorHandler } from './middleware/errorHandler';
@@ -97,6 +98,7 @@ app.use('/api/reports', reportRouter);
 app.use('/api/billing', billingRouter);
 app.use('/api/alerts', alertRouter);
 app.use('/api/planning', planningRouter);
+app.use('/api/hygiene', hygieneRouter);
 
 // Renvoie le profil complet de l'utilisateur connecté — interroge la
 // base plutôt que de se contenter du contenu du token, pour que le

@@ -292,6 +292,11 @@ export default function DashboardPage() {
           <Link to="/menu" className="inline-block mr-6 text-slate-900 font-medium underline">
             La carte →
           </Link>
+          {/* Hygiène : lecture et checklists ouvertes à toute l'équipe
+              (décision 7.0), contrairement au Planning réservé au Gérant. */}
+          <Link to="/hygiene" className="inline-block mr-6 text-slate-900 font-medium underline">
+            Hygiène →
+          </Link>
           {(user?.role === 'GERANT' || user?.role === 'CUISINE') && (
             <Link to="/invoices" className="inline-block mr-6 text-slate-900 font-medium underline">
               Factures →

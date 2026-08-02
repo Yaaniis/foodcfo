@@ -31,3 +31,12 @@ export function detectFileType(buffer: Buffer): DetectedFileType {
 }
 
 export const ALLOWED_INVOICE_FILE_TYPES: DetectedFileType[] = ['application/pdf', 'image/jpeg', 'image/png'];
+
+// Rappels/normes d'hygiène (Phase 7.3) : images uniquement, pas de PDF
+// (un poster/photo, pas un document) — et pas de vidéo pour l'instant,
+// volontairement : le volume Postgres est limité (500 Mo, partagé avec
+// toutes les données de tous les restaurants), et une vidéo dépasse
+// largement la taille d'une image ou d'une facture scannée. À
+// reconsidérer si le besoin est confirmé (nécessiterait un stockage
+// dédié, pas le pattern Bytes-en-base utilisé partout ailleurs).
+export const ALLOWED_HYGIENE_MEDIA_TYPES: DetectedFileType[] = ['image/jpeg', 'image/png'];

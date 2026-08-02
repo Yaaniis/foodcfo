@@ -25,6 +25,8 @@ import ConsolidatedPage from './pages/ConsolidatedPage';
 import BillingPage from './pages/BillingPage';
 import PlanningPage from './pages/PlanningPage';
 import ScheduleDetailPage from './pages/ScheduleDetailPage';
+import HygienePage from './pages/HygienePage';
+import ChecklistCompletionPage from './pages/ChecklistCompletionPage';
 import MentionsLegalesPage from './pages/legal/MentionsLegalesPage';
 import CGUPage from './pages/legal/CGUPage';
 import ConfidentialitePage from './pages/legal/ConfidentialitePage';
@@ -67,6 +69,8 @@ function App() {
                 Gérant/Cuisine uniquement. */}
             <Route element={<RequireRole roles={['GERANT', 'CUISINE', 'SERVICE']} />}>
               <Route path="/menu" element={<MenuPage />} />
+              <Route path="/hygiene" element={<HygienePage />} />
+              <Route path="/hygiene/completions/:completionId" element={<ChecklistCompletionPage />} />
             </Route>
 
             <Route element={<RequireRole roles={['GERANT', 'CUISINE']} />}>
