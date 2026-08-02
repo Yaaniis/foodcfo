@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { useAuth, type UserRole } from '../context/AuthContext';
 import { ApiRequestError } from '../lib/apiClient';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001';
+
 type Weekday = 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY' | 'SUNDAY';
 type ScheduleStatus = 'DRAFT' | 'VALIDATED';
 
@@ -70,7 +72,7 @@ function formatDateFr(dateStr: string): string {
 }
 
 export default function PlanningPage() {
-  const { authFetch } = useAuth();
+  const { authFetch, accessToken } = useAuth();
   const [tab, setTab] = useState<'schedules' | 'availabilities' | 'requirements'>('schedules');
 
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -223,6 +225,39 @@ export default function PlanningPage() {
     return emp ? `${emp.firstName} ${emp.lastName}` : 'Employé inconnu';
   }
 
+  // --- Récapitulatif d'heures pour le comptable ---
+  const [exportPeriodStart, setExportPeriodStart] = useState('');
+  const [exportPeriodEnd, setExportPeriodEnd] = useState('');
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+
+  async function handleExportHours() {
+    setExportError(null);
+    setIsExporting(true);
+    try {
+      const params = new URLSearchParams();
+      if (exportPeriodStart) params.set('periodStart', exportPeriodStart);
+      if (exportPeriodEnd) params.set('periodEnd', exportPeriodEnd);
+      const res = await fetch(`${API_BASE_URL}/api/planning/hours-summary.csv?${params.toString()}`, {
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      });
+      if (!res.ok) {
+        throw new Error("Impossible de générer le récapitulatif.");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `recapitulatif_heures_${exportPeriodStart || 'periode'}_${exportPeriodEnd || 'courante'}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setExportError('Impossible de télécharger le récapitulatif.');
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8">
       <div className="max-w-2xl mx-auto">
@@ -360,6 +395,48 @@ export default function PlanningPage() {
               ))}
               {schedules.length === 0 && <p className="text-slate-500">Aucun planning généré pour l'instant.</p>}
             </ul>
+
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 mt-6 space-y-4">
+              <div>
+                <p className="font-medium text-slate-900">Récapitulatif d'heures pour le comptable</p>
+                <p className="text-sm text-slate-500">
+                  Heures normales, supplémentaires, dimanches et jours fériés, calculées à partir des plannings
+                  validés sur la période. Sans dates, le mois en cours est utilisé.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="text-sm text-slate-600">
+                  Du
+                  <input
+                    type="date"
+                    value={exportPeriodStart}
+                    onChange={(e) => setExportPeriodStart(e.target.value)}
+                    className="mt-1 w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  />
+                </label>
+                <label className="text-sm text-slate-600">
+                  Au
+                  <input
+                    type="date"
+                    value={exportPeriodEnd}
+                    onChange={(e) => setExportPeriodEnd(e.target.value)}
+                    className="mt-1 w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  />
+                </label>
+              </div>
+              {exportError && (
+                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  {exportError}
+                </p>
+              )}
+              <button
+                onClick={handleExportHours}
+                disabled={isExporting}
+                className="w-full min-h-[44px] rounded-lg border border-slate-300 font-medium disabled:opacity-50"
+              >
+                {isExporting ? 'Génération…' : 'Télécharger le récapitulatif (CSV)'}
+              </button>
+            </div>
           </>
         )}
 

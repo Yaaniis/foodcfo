@@ -15,6 +15,7 @@ import {
   generateScheduleForRestaurant,
   validateSchedule,
 } from '../controllers/schedule.controller';
+import { exportHoursSummaryCsv } from '../controllers/hoursSummary.controller';
 import { requireAuth } from '../middleware/auth';
 import { requireRole } from '../middleware/requireRole';
 import { asyncHandler } from '../utils/asyncHandler';
@@ -39,3 +40,5 @@ planningRouter.get('/schedules', asyncHandler(listSchedules));
 planningRouter.get('/schedules/:id', asyncHandler(getSchedule));
 planningRouter.post('/schedules/generate', asyncHandler(generateScheduleForRestaurant));
 planningRouter.post('/schedules/:id/validate', asyncHandler(validateSchedule));
+
+planningRouter.get('/hours-summary.csv', asyncHandler(exportHoursSummaryCsv));
