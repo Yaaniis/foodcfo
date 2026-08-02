@@ -140,8 +140,11 @@ Réservé au GERANT (pilotage d'équipe, même périmètre que `/api/users`).
 | GET | `/availabilities` | Liste des règles de disponibilité (indisponibilité) des employés |
 | POST | `/availabilities` | `{ userId, weekday XOR specificDate, reason? }` — récurrente (jour de semaine) ou ponctuelle (date précise), jamais les deux |
 | DELETE | `/availabilities/:id` | Supprime une règle |
+| GET | `/staffing-requirements` | Liste des besoins de staffing (gabarit hebdomadaire) |
+| POST | `/staffing-requirements` | `{ weekday, role, startTime, endTime, requiredCount }` — heures au format `HH:mm`, `endTime` doit être après `startTime` |
+| DELETE | `/staffing-requirements/:id` | Supprime un besoin |
 
-À venir : besoins de staffing, génération et validation du planning, récapitulatif d'heures.
+À venir : génération et validation du planning, récapitulatif d'heures.
 
 ## Exports et rapports — `/api/exports`, `/api/reports`
 
