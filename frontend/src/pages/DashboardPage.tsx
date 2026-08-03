@@ -293,9 +293,14 @@ export default function DashboardPage() {
             La carte →
           </Link>
           {/* Hygiène : lecture et checklists ouvertes à toute l'équipe
-              (décision 7.0), contrairement au Planning réservé au Gérant. */}
+              (décision 7.0). Planning : consultation ouverte à toute
+              l'équipe depuis le 03/08/2026, modification réservée au
+              Gérant (masquée côté page, appliquée côté backend). */}
           <Link to="/hygiene" className="inline-block mr-6 text-slate-900 font-medium underline">
             Hygiène →
+          </Link>
+          <Link to="/planning" className="inline-block mr-6 text-slate-900 font-medium underline">
+            Planning →
           </Link>
           {(user?.role === 'GERANT' || user?.role === 'CUISINE') && (
             <Link to="/invoices" className="inline-block mr-6 text-slate-900 font-medium underline">
@@ -326,11 +331,6 @@ export default function DashboardPage() {
           {user?.role === 'GERANT' && (
             <Link to="/team" className="inline-block mr-6 text-slate-900 font-medium underline">
               Gérer l'équipe →
-            </Link>
-          )}
-          {user?.role === 'GERANT' && (
-            <Link to="/planning" className="inline-block mr-6 text-slate-900 font-medium underline">
-              Planning →
             </Link>
           )}
           {user?.role === 'GERANT' && (

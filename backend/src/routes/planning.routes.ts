@@ -21,24 +21,37 @@ import { requireRole } from '../middleware/requireRole';
 import { asyncHandler } from '../utils/asyncHandler';
 
 export const planningRouter = Router();
+planningRouter.use(requireAuth);
 
-// Gérer le planning (disponibilités, besoins, génération) est une
-// décision de pilotage de l'équipe — réservé au Gérant, comme la
-// gestion d'équipe (userRouter) dont ce module dépend directement
-// (les employés planifiés sont les mêmes que ceux de /api/users).
-planningRouter.use(requireAuth, requireRole('GERANT'));
-
-planningRouter.get('/availabilities', asyncHandler(listEmployeeAvailabilities));
-planningRouter.post('/availabilities', asyncHandler(createEmployeeAvailability));
-planningRouter.delete('/availabilities/:id', asyncHandler(deleteEmployeeAvailability));
-
-planningRouter.get('/staffing-requirements', asyncHandler(listStaffingRequirements));
-planningRouter.post('/staffing-requirements', asyncHandler(createStaffingRequirement));
-planningRouter.delete('/staffing-requirements/:id', asyncHandler(deleteStaffingRequirement));
-
+// Consulter le planning généré (le calendrier des créneaux) est ouvert
+// à toute l'équipe — décision explicite de l'utilisateur, 03/08/2026 :
+// c'est l'équivalent numérique du planning affiché en cuisine, tout le
+// monde doit pouvoir le consulter. Les deux contrôleurs scopent déjà
+// par restaurantId (isolation multi-tenant inchangée), la réponse ne
+// contient aucune donnée financière/sensible (juste qui travaille
+// quand, comme un planning papier classique).
 planningRouter.get('/schedules', asyncHandler(listSchedules));
 planningRouter.get('/schedules/:id', asyncHandler(getSchedule));
-planningRouter.post('/schedules/generate', asyncHandler(generateScheduleForRestaurant));
-planningRouter.post('/schedules/:id/validate', asyncHandler(validateSchedule));
 
-planningRouter.get('/hours-summary.csv', asyncHandler(exportHoursSummaryCsv));
+// Tout le reste reste réservé au Gérant : les disponibilités et
+// besoins de staffing sont les données d'entrée du générateur (une
+// décision de pilotage, pas une consultation), la génération et la
+// validation modifient le planning (explicitement exclu par
+// l'utilisateur pour Cuisine/Service), et le récapitulatif d'heures
+// est un document comptable, pas destiné à l'équipe.
+planningRouter.get('/availabilities', requireRole('GERANT'), asyncHandler(listEmployeeAvailabilities));
+planningRouter.post('/availabilities', requireRole('GERANT'), asyncHandler(createEmployeeAvailability));
+planningRouter.delete('/availabilities/:id', requireRole('GERANT'), asyncHandler(deleteEmployeeAvailability));
+
+planningRouter.get('/staffing-requirements', requireRole('GERANT'), asyncHandler(listStaffingRequirements));
+planningRouter.post('/staffing-requirements', requireRole('GERANT'), asyncHandler(createStaffingRequirement));
+planningRouter.delete(
+  '/staffing-requirements/:id',
+  requireRole('GERANT'),
+  asyncHandler(deleteStaffingRequirement),
+);
+
+planningRouter.post('/schedules/generate', requireRole('GERANT'), asyncHandler(generateScheduleForRestaurant));
+planningRouter.post('/schedules/:id/validate', requireRole('GERANT'), asyncHandler(validateSchedule));
+
+planningRouter.get('/hours-summary.csv', requireRole('GERANT'), asyncHandler(exportHoursSummaryCsv));

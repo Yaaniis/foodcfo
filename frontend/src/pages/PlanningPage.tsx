@@ -72,7 +72,12 @@ function formatDateFr(dateStr: string): string {
 }
 
 export default function PlanningPage() {
-  const { authFetch, accessToken } = useAuth();
+  const { authFetch, accessToken, user } = useAuth();
+  // Consultation du planning ouverte à toute l'équipe (décision du
+  // 03/08/2026) ; disponibilités, besoins, génération, validation et
+  // récapitulatif comptable restent réservés au Gérant côté backend —
+  // masqués ici pour ne pas afficher des actions qui échoueraient en 403.
+  const canManage = user?.role === 'GERANT';
   const [tab, setTab] = useState<'schedules' | 'availabilities' | 'requirements'>('schedules');
 
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -86,16 +91,21 @@ export default function PlanningPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const [usersData, availData, reqData, schedData] = await Promise.all([
-        authFetch<{ users: Employee[] }>('/api/users'),
-        authFetch<{ availabilities: Availability[] }>('/api/planning/availabilities'),
-        authFetch<{ staffingRequirements: StaffingRequirement[] }>('/api/planning/staffing-requirements'),
-        authFetch<{ schedules: ScheduleSummary[] }>('/api/planning/schedules'),
-      ]);
-      setEmployees(usersData.users.filter((u) => u.isActive));
-      setAvailabilities(availData.availabilities);
-      setRequirements(reqData.staffingRequirements);
-      setSchedules(schedData.schedules);
+      if (canManage) {
+        const [usersData, availData, reqData, schedData] = await Promise.all([
+          authFetch<{ users: Employee[] }>('/api/users'),
+          authFetch<{ availabilities: Availability[] }>('/api/planning/availabilities'),
+          authFetch<{ staffingRequirements: StaffingRequirement[] }>('/api/planning/staffing-requirements'),
+          authFetch<{ schedules: ScheduleSummary[] }>('/api/planning/schedules'),
+        ]);
+        setEmployees(usersData.users.filter((u) => u.isActive));
+        setAvailabilities(availData.availabilities);
+        setRequirements(reqData.staffingRequirements);
+        setSchedules(schedData.schedules);
+      } else {
+        const schedData = await authFetch<{ schedules: ScheduleSummary[] }>('/api/planning/schedules');
+        setSchedules(schedData.schedules);
+      }
     } catch (err) {
       setError(err instanceof ApiRequestError ? err.message : 'Impossible de charger le planning.');
     } finally {
@@ -266,25 +276,27 @@ export default function PlanningPage() {
         </Link>
         <h1 className="text-2xl font-bold text-slate-900 mt-2 mb-6">Planning</h1>
 
-        <div className="flex gap-2 mb-6 border-b border-slate-200">
-          {(
-            [
-              ['schedules', 'Plannings'],
-              ['availabilities', 'Disponibilités'],
-              ['requirements', 'Besoins'],
-            ] as const
-          ).map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className={`min-h-[44px] px-4 font-medium border-b-2 -mb-px ${
-                tab === key ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        {canManage && (
+          <div className="flex gap-2 mb-6 border-b border-slate-200">
+            {(
+              [
+                ['schedules', 'Plannings'],
+                ['availabilities', 'Disponibilités'],
+                ['requirements', 'Besoins'],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setTab(key)}
+                className={`min-h-[44px] px-4 font-medium border-b-2 -mb-px ${
+                  tab === key ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {error && (
           <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{error}</p>
@@ -293,46 +305,48 @@ export default function PlanningPage() {
 
         {!isLoading && tab === 'schedules' && (
           <>
-            <form onSubmit={handleGenerate} className="bg-white rounded-2xl border border-slate-200 p-6 mb-6 space-y-4">
-              <p className="text-sm text-slate-500">
-                Génère un planning brouillon à partir des besoins de staffing et des disponibilités saisis. À vérifier
-                et valider avant qu'il devienne définitif.
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="text-sm text-slate-600">
-                  Du
-                  <input
-                    type="date"
-                    required
-                    value={periodStart}
-                    onChange={(e) => setPeriodStart(e.target.value)}
-                    className="mt-1 w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
-                  />
-                </label>
-                <label className="text-sm text-slate-600">
-                  Au
-                  <input
-                    type="date"
-                    required
-                    value={periodEnd}
-                    onChange={(e) => setPeriodEnd(e.target.value)}
-                    className="mt-1 w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
-                  />
-                </label>
-              </div>
-              {genError && (
-                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{genError}</p>
-              )}
-              <button
-                type="submit"
-                disabled={isGenerating}
-                className="w-full min-h-[44px] rounded-lg bg-slate-900 text-white font-medium disabled:opacity-50"
-              >
-                {isGenerating ? 'Génération…' : 'Générer un planning'}
-              </button>
-            </form>
+            {canManage && (
+              <form onSubmit={handleGenerate} className="bg-white rounded-2xl border border-slate-200 p-6 mb-6 space-y-4">
+                <p className="text-sm text-slate-500">
+                  Génère un planning brouillon à partir des besoins de staffing et des disponibilités saisis. À vérifier
+                  et valider avant qu'il devienne définitif.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="text-sm text-slate-600">
+                    Du
+                    <input
+                      type="date"
+                      required
+                      value={periodStart}
+                      onChange={(e) => setPeriodStart(e.target.value)}
+                      className="mt-1 w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
+                    />
+                  </label>
+                  <label className="text-sm text-slate-600">
+                    Au
+                    <input
+                      type="date"
+                      required
+                      value={periodEnd}
+                      onChange={(e) => setPeriodEnd(e.target.value)}
+                      className="mt-1 w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
+                    />
+                  </label>
+                </div>
+                {genError && (
+                  <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{genError}</p>
+                )}
+                <button
+                  type="submit"
+                  disabled={isGenerating}
+                  className="w-full min-h-[44px] rounded-lg bg-slate-900 text-white font-medium disabled:opacity-50"
+                >
+                  {isGenerating ? 'Génération…' : 'Générer un planning'}
+                </button>
+              </form>
+            )}
 
-            {genResult && (
+            {canManage && genResult && (
               <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-6 space-y-3">
                 <p className="font-medium text-slate-900">
                   Planning généré : {genResult.schedule.shiftAssignments.length} créneau(x) affecté(s).
@@ -396,47 +410,49 @@ export default function PlanningPage() {
               {schedules.length === 0 && <p className="text-slate-500">Aucun planning généré pour l'instant.</p>}
             </ul>
 
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 mt-6 space-y-4">
-              <div>
-                <p className="font-medium text-slate-900">Récapitulatif d'heures pour le comptable</p>
-                <p className="text-sm text-slate-500">
-                  Heures normales, supplémentaires, dimanches et jours fériés, calculées à partir des plannings
-                  validés sur la période. Sans dates, le mois en cours est utilisé.
-                </p>
+            {canManage && (
+              <div className="bg-white rounded-2xl border border-slate-200 p-6 mt-6 space-y-4">
+                <div>
+                  <p className="font-medium text-slate-900">Récapitulatif d'heures pour le comptable</p>
+                  <p className="text-sm text-slate-500">
+                    Heures normales, supplémentaires, dimanches et jours fériés, calculées à partir des plannings
+                    validés sur la période. Sans dates, le mois en cours est utilisé.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="text-sm text-slate-600">
+                    Du
+                    <input
+                      type="date"
+                      value={exportPeriodStart}
+                      onChange={(e) => setExportPeriodStart(e.target.value)}
+                      className="mt-1 w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
+                    />
+                  </label>
+                  <label className="text-sm text-slate-600">
+                    Au
+                    <input
+                      type="date"
+                      value={exportPeriodEnd}
+                      onChange={(e) => setExportPeriodEnd(e.target.value)}
+                      className="mt-1 w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
+                    />
+                  </label>
+                </div>
+                {exportError && (
+                  <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                    {exportError}
+                  </p>
+                )}
+                <button
+                  onClick={handleExportHours}
+                  disabled={isExporting}
+                  className="w-full min-h-[44px] rounded-lg border border-slate-300 font-medium disabled:opacity-50"
+                >
+                  {isExporting ? 'Génération…' : 'Télécharger le récapitulatif (CSV)'}
+                </button>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="text-sm text-slate-600">
-                  Du
-                  <input
-                    type="date"
-                    value={exportPeriodStart}
-                    onChange={(e) => setExportPeriodStart(e.target.value)}
-                    className="mt-1 w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
-                  />
-                </label>
-                <label className="text-sm text-slate-600">
-                  Au
-                  <input
-                    type="date"
-                    value={exportPeriodEnd}
-                    onChange={(e) => setExportPeriodEnd(e.target.value)}
-                    className="mt-1 w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
-                  />
-                </label>
-              </div>
-              {exportError && (
-                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                  {exportError}
-                </p>
-              )}
-              <button
-                onClick={handleExportHours}
-                disabled={isExporting}
-                className="w-full min-h-[44px] rounded-lg border border-slate-300 font-medium disabled:opacity-50"
-              >
-                {isExporting ? 'Génération…' : 'Télécharger le récapitulatif (CSV)'}
-              </button>
-            </div>
+            )}
           </>
         )}
 

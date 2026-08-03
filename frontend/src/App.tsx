@@ -59,8 +59,6 @@ function App() {
               <Route path="/consolidated" element={<ConsolidatedPage />} />
               <Route path="/billing" element={<BillingPage />} />
               <Route path="/restaurant-settings" element={<RestaurantSettingsPage />} />
-              <Route path="/planning" element={<PlanningPage />} />
-              <Route path="/planning/schedules/:scheduleId" element={<ScheduleDetailPage />} />
               <Route path="/control" element={<ControlPage />} />
               <Route path="/control/:organism" element={<ControlOrganismPage />} />
             </Route>
@@ -68,13 +66,17 @@ function App() {
             {/* La carte est ouverte en lecture au Service (décision 0.5 :
                 "consultation carte/allergènes en lecture seule") — MenuPage
                 masque elle-même la marge et les actions d'édition pour ce
-                rôle. Tout le reste (fiche technique avec coût matière,
-                fournisseurs, factures, commandes, gaspillage) reste
-                Gérant/Cuisine uniquement. */}
+                rôle. Le planning est ouvert en consultation à toute
+                l'équipe depuis le 03/08/2026 (décision explicite de
+                l'utilisateur) : PlanningPage/ScheduleDetailPage masquent
+                elles-mêmes la génération/les réglages/la validation pour
+                Cuisine/Service, réservées au Gérant côté backend. */}
             <Route element={<RequireRole roles={['GERANT', 'CUISINE', 'SERVICE']} />}>
               <Route path="/menu" element={<MenuPage />} />
               <Route path="/hygiene" element={<HygienePage />} />
               <Route path="/hygiene/completions/:completionId" element={<ChecklistCompletionPage />} />
+              <Route path="/planning" element={<PlanningPage />} />
+              <Route path="/planning/schedules/:scheduleId" element={<ScheduleDetailPage />} />
             </Route>
 
             <Route element={<RequireRole roles={['GERANT', 'CUISINE']} />}>

@@ -193,4 +193,42 @@ describe('Planning — génération de planning', () => {
       .send({ periodStart: MONDAY, periodEnd: MONDAY });
     expect(res.status).toBe(403);
   });
+
+  it(
+    "consultation ouverte à toute l'équipe (décision du 03/08/2026), mais génération/validation toujours réservées au Gérant",
+    async () => {
+      const restaurant = await bootstrapRestaurant('G');
+      await addEmployee(restaurant.accessToken, 'CuistotG', 'CUISINE');
+      const cuisineLogin = await request(app)
+        .post('/api/auth/login')
+        .send({ email: `employe-planning-${suffix}-CuistotG@test-foodcfo.local`, password: 'MotDePasseTest123!' });
+      const cuisineToken = cuisineLogin.body.accessToken as string;
+
+      await request(app)
+        .post('/api/planning/staffing-requirements')
+        .set('Authorization', `Bearer ${restaurant.accessToken}`)
+        .send({ weekday: 'MONDAY', role: 'CUISINE', startTime: '11:00', endTime: '15:00', requiredCount: 1 });
+      const generate = await request(app)
+        .post('/api/planning/schedules/generate')
+        .set('Authorization', `Bearer ${restaurant.accessToken}`)
+        .send({ periodStart: MONDAY, periodEnd: MONDAY });
+      const scheduleId = generate.body.schedule.id as string;
+
+      const list = await request(app)
+        .get('/api/planning/schedules')
+        .set('Authorization', `Bearer ${cuisineToken}`);
+      expect(list.status).toBe(200);
+      expect(list.body.schedules.map((s: { id: string }) => s.id)).toContain(scheduleId);
+
+      const detail = await request(app)
+        .get(`/api/planning/schedules/${scheduleId}`)
+        .set('Authorization', `Bearer ${cuisineToken}`);
+      expect(detail.status).toBe(200);
+
+      const validate = await request(app)
+        .post(`/api/planning/schedules/${scheduleId}/validate`)
+        .set('Authorization', `Bearer ${cuisineToken}`);
+      expect(validate.status).toBe(403);
+    },
+  );
 });

@@ -46,7 +46,8 @@ function formatDateFr(dateStr: string): string {
 
 export default function ScheduleDetailPage() {
   const { scheduleId } = useParams<{ scheduleId: string }>();
-  const { authFetch } = useAuth();
+  const { authFetch, user } = useAuth();
+  const canManage = user?.role === 'GERANT';
 
   const [schedule, setSchedule] = useState<ScheduleDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -146,7 +147,7 @@ export default function ScheduleDetailPage() {
               ))}
             </div>
 
-            {schedule.status === 'DRAFT' && (
+            {canManage && schedule.status === 'DRAFT' && (
               <button
                 onClick={handleValidate}
                 disabled={isValidating}
