@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ApiRequestError } from '../lib/apiClient';
+import Badge, { type BadgeTone } from '../components/Badge';
+import EmptyState from '../components/EmptyState';
 
 interface Invoice {
   id: string;
@@ -27,13 +29,17 @@ const STATUS_LABELS: Record<Invoice['status'], string> = {
   ERROR: 'Extraction échouée — saisie manuelle',
 };
 
-const STATUS_STYLES: Record<Invoice['status'], string> = {
-  UPLOADED: 'bg-slate-100 text-slate-700',
-  PROCESSING: 'bg-slate-100 text-slate-700',
-  PENDING_REVIEW: 'bg-amber-50 text-amber-700 border border-amber-200',
-  VALIDATED: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-  ERROR: 'bg-red-50 text-red-700 border border-red-200',
+// Les 5 statuts couvrent exactement les 5 tons du système — même
+// mapping que celui construit dans l'artefact pour ce même statut.
+const STATUS_TONE: Record<Invoice['status'], BadgeTone> = {
+  UPLOADED: 'neutral',
+  PROCESSING: 'info',
+  PENDING_REVIEW: 'attention',
+  VALIDATED: 'success',
+  ERROR: 'danger',
 };
+
+const TABLE_COLS = 'grid-cols-[1fr_100px_90px_150px]';
 
 export default function InvoicesPage() {
   const { authFetch } = useAuth();
@@ -94,77 +100,80 @@ export default function InvoicesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-8">
-      <div className="max-w-2xl mx-auto">
-        <Link to="/" className="text-sm text-slate-500 underline">
-          ← Retour à l'accueil
-        </Link>
-        <h1 className="text-2xl font-bold text-slate-900 mt-2 mb-6">Factures fournisseurs</h1>
+    <div className="max-w-3xl">
+      <h2 className="font-display text-2xl font-bold tracking-tight mb-6">Factures fournisseurs</h2>
 
-        <form onSubmit={handleUpload} className="bg-white rounded-2xl border border-slate-200 p-6 mb-6 space-y-3">
-          <p className="text-sm font-medium text-slate-700">Ajouter une facture</p>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
-            className="w-full text-sm"
-          />
-          <select
-            value={supplierId}
-            onChange={(e) => setSupplierId(e.target.value)}
-            className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
-          >
-            <option value="">Fournisseur (optionnel, à préciser si besoin plus tard)</option>
-            {suppliers.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-          {error && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
-          )}
-          <button
-            type="submit"
-            disabled={isUploading}
-            className="w-full min-h-[44px] rounded-lg bg-slate-900 text-white font-medium disabled:opacity-50"
-          >
-            {isUploading ? 'Envoi et analyse…' : 'Envoyer la facture'}
-          </button>
-        </form>
-
-        {isLoading && <p className="text-slate-500">Chargement…</p>}
-
-        <ul className="space-y-2">
-          {invoices.map((invoice) => (
-            <li key={invoice.id}>
-              <Link
-                to={`/invoices/${invoice.id}`}
-                className="block bg-white rounded-xl border border-slate-200 p-4 hover:border-slate-300"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-medium text-slate-900 truncate">
-                      {invoice.supplier?.name ?? 'Fournisseur non renseigné'}
-                    </p>
-                    <p className="text-sm text-slate-500">
-                      {new Date(invoice.createdAt).toLocaleDateString('fr-FR')}
-                      {invoice.totalAmount && ` · ${Number(invoice.totalAmount).toFixed(2)} €`}
-                      {` · ${invoice.lineItems.length} ligne(s)`}
-                    </p>
-                  </div>
-                  <span className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-lg ${STATUS_STYLES[invoice.status]}`}>
-                    {STATUS_LABELS[invoice.status]}
-                  </span>
-                </div>
-              </Link>
-            </li>
+      <form onSubmit={handleUpload} className="bg-surface border border-border rounded-card-lg shadow-card p-6 mb-6 space-y-3">
+        <p className="text-sm font-medium text-text-muted">Ajouter une facture</p>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+          className="w-full text-sm text-text-muted file:mr-3 file:py-2.5 file:px-4 file:rounded-card-md file:border-0 file:bg-accent file:text-accent-text file:font-medium file:cursor-pointer hover:file:brightness-105"
+        />
+        <select
+          value={supplierId}
+          onChange={(e) => setSupplierId(e.target.value)}
+          className="w-full min-h-[44px] rounded-card-md border border-border bg-surface px-3 text-text focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
+        >
+          <option value="">Fournisseur (optionnel, à préciser si besoin plus tard)</option>
+          {suppliers.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
           ))}
-          {!isLoading && invoices.length === 0 && (
-            <p className="text-slate-500">Aucune facture pour l'instant.</p>
-          )}
-        </ul>
-      </div>
+        </select>
+        {error && (
+          <p className="text-sm text-danger bg-danger-soft border border-danger/30 rounded-card-md px-3 py-2">{error}</p>
+        )}
+        <button
+          type="submit"
+          disabled={isUploading}
+          className="w-full min-h-[44px] rounded-card-md bg-accent text-accent-text font-medium disabled:opacity-50 hover:brightness-105"
+        >
+          {isUploading ? 'Envoi et analyse…' : 'Envoyer la facture'}
+        </button>
+      </form>
+
+      {isLoading && <p className="text-text-faint">Chargement…</p>}
+
+      {!isLoading && invoices.length === 0 && (
+        <div className="bg-surface border border-border rounded-card-lg shadow-card">
+          <EmptyState
+            title="Aucune facture pour l'instant"
+            description="Envoyez une première facture ci-dessus — elle sera analysée automatiquement."
+          />
+        </div>
+      )}
+
+      {invoices.length > 0 && (
+        <div className="bg-surface border border-border rounded-card-lg shadow-card overflow-hidden">
+          <div className={`grid ${TABLE_COLS} gap-3 px-5 pb-2.5 pt-4 text-xs font-semibold uppercase tracking-wide text-text-faint`}>
+            <span>Fournisseur</span>
+            <span>Date</span>
+            <span className="text-right">Montant</span>
+            <span>Statut</span>
+          </div>
+          {invoices.map((invoice) => (
+            <Link
+              key={invoice.id}
+              to={`/invoices/${invoice.id}`}
+              className={`grid ${TABLE_COLS} gap-3 items-center px-5 py-3.5 border-t border-border hover:bg-surface-hover transition-colors`}
+            >
+              <span className="font-medium truncate">{invoice.supplier?.name ?? 'Fournisseur non renseigné'}</span>
+              <span className="text-sm text-text-muted tabular-nums">
+                {new Date(invoice.createdAt).toLocaleDateString('fr-FR')}
+              </span>
+              <span className="text-sm text-text tabular-nums text-right">
+                {invoice.totalAmount ? `${Number(invoice.totalAmount).toFixed(2)} €` : '—'}
+              </span>
+              <span>
+                <Badge tone={STATUS_TONE[invoice.status]}>{STATUS_LABELS[invoice.status]}</Badge>
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

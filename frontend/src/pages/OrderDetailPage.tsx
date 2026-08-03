@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ApiRequestError } from '../lib/apiClient';
+import Badge, { type BadgeTone } from '../components/Badge';
 
 interface OrderLine {
   id: string;
@@ -51,6 +52,18 @@ const STATUS_LABELS: Record<OrderDetail['status'], string> = {
   DELIVERED: 'Livrée',
   CANCELLED: 'Annulée',
 };
+
+const STATUS_TONE: Record<OrderDetail['status'], BadgeTone> = {
+  DRAFT: 'neutral',
+  SENT: 'info',
+  CONFIRMED: 'info',
+  DELIVERED: 'success',
+  CANCELLED: 'neutral',
+};
+
+const primaryBtnClass = 'min-h-[44px] px-4 rounded-card-md bg-accent text-accent-text font-medium disabled:opacity-50 hover:brightness-105';
+const secondaryBtnClass =
+  'min-h-[44px] px-4 rounded-card-md border border-border text-sm font-medium disabled:opacity-50 hover:border-border-strong';
 
 export default function OrderDetailPage() {
   const { orderId } = useParams<{ orderId: string }>();
@@ -143,7 +156,7 @@ export default function OrderDetailPage() {
   }
 
   if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center text-slate-400">Chargement…</div>;
+    return <p className="text-text-faint">Chargement…</p>;
   }
   if (!order) {
     // error distingue une vraie erreur réseau/serveur (souvent
@@ -151,9 +164,9 @@ export default function OrderDetailPage() {
     // introuvable — sans ça, une simple coupure réseau affichait le
     // même message qu'une suppression, sans jamais proposer de réessayer.
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-3 text-center px-4">
-        <p className="text-red-600">{error ?? 'Commande introuvable.'}</p>
-        <button onClick={() => load()} className="min-h-[44px] px-4 rounded-lg border border-slate-300 font-medium">
+      <div className="flex flex-col items-center gap-3 text-center px-4 py-12">
+        <p className="text-danger">{error ?? 'Commande introuvable.'}</p>
+        <button onClick={() => load()} className={secondaryBtnClass}>
           Réessayer
         </button>
       </div>
@@ -161,110 +174,89 @@ export default function OrderDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-8">
-      <div className="max-w-2xl mx-auto">
-        <Link to="/orders" className="text-sm text-slate-500 underline">
-          ← Retour aux commandes
-        </Link>
-        <h1 className="text-2xl font-bold text-slate-900 mt-2 mb-1">{order.supplier.name}</h1>
-        <p className="text-slate-500 mb-4">{STATUS_LABELS[order.status]}</p>
+    <div className="max-w-3xl">
+      <Link to="/orders" className="text-sm text-text-muted hover:text-accent">
+        ← Retour aux commandes
+      </Link>
+      <div className="flex items-center gap-3 mt-2 mb-4">
+        <h2 className="font-display text-2xl font-bold tracking-tight">{order.supplier.name}</h2>
+        <Badge tone={STATUS_TONE[order.status]}>{STATUS_LABELS[order.status]}</Badge>
+      </div>
 
-        {error && (
-          <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{error}</p>
-        )}
+      {error && (
+        <p className="text-sm text-danger bg-danger-soft border border-danger/30 rounded-card-md px-3 py-2 mb-4">{error}</p>
+      )}
 
-        {sendOutcome === 'success' && (
-          <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 mb-4">
-            {sentViaLabel(order.supplier)}
-          </p>
-        )}
+      {sendOutcome === 'success' && (
+        <p className="text-sm text-good bg-good-soft border border-good/30 rounded-card-md px-3 py-2 mb-4">
+          {sentViaLabel(order.supplier)}
+        </p>
+      )}
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-4">
-          <p className="text-sm font-medium text-slate-700 mb-3">Lignes</p>
-          <ul className="space-y-2">
-            {order.lineItems.map((line) => (
-              <li key={line.id} className="flex justify-between text-sm">
-                <span className="text-slate-700">{line.product.name}</span>
-                <span className="text-slate-500">
-                  {Number(line.quantity)} {UNIT_LABELS[line.product.unit]}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {generatedMessage && (
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-4">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-medium text-slate-700">
-                {sendOutcome === 'failed'
-                  ? "Envoi automatique indisponible — message à envoyer manuellement"
-                  : 'Message envoyé'}
-              </p>
-              <button onClick={handleCopyMessage} className="text-sm text-slate-500 underline">
-                {copied ? 'Copié !' : 'Copier'}
-              </button>
-            </div>
-            <pre className="text-sm text-slate-600 whitespace-pre-wrap bg-slate-50 rounded-lg p-3">
-              {generatedMessage.text}
-            </pre>
-          </div>
-        )}
-
-        <div className="flex flex-wrap gap-3">
-          {order.status === 'DRAFT' && (
-            <>
-              <button
-                onClick={handleSend}
-                disabled={isSending}
-                className="min-h-[44px] px-4 rounded-lg bg-slate-900 text-white font-medium disabled:opacity-50"
-              >
-                {isSending ? 'Envoi…' : 'Envoyer la commande'}
-              </button>
-              <button
-                onClick={() => handleStatusChange('CANCELLED')}
-                disabled={isUpdatingStatus}
-                className="min-h-[44px] px-4 rounded-lg border border-slate-300 text-slate-700 font-medium disabled:opacity-50"
-              >
-                Annuler la commande
-              </button>
-            </>
-          )}
-          {order.status === 'SENT' && (
-            <>
-              <button
-                onClick={() => handleStatusChange('CONFIRMED')}
-                disabled={isUpdatingStatus}
-                className="min-h-[44px] px-4 rounded-lg bg-slate-900 text-white font-medium disabled:opacity-50"
-              >
-                Marquer confirmée
-              </button>
-              <button
-                onClick={() => handleStatusChange('DELIVERED')}
-                disabled={isUpdatingStatus}
-                className="min-h-[44px] px-4 rounded-lg border border-slate-300 text-slate-700 font-medium disabled:opacity-50"
-              >
-                Marquer livrée
-              </button>
-              <button
-                onClick={() => handleStatusChange('CANCELLED')}
-                disabled={isUpdatingStatus}
-                className="min-h-[44px] px-4 rounded-lg border border-slate-300 text-slate-700 font-medium disabled:opacity-50"
-              >
-                Annuler
-              </button>
-            </>
-          )}
-          {order.status === 'CONFIRMED' && (
-            <button
-              onClick={() => handleStatusChange('DELIVERED')}
-              disabled={isUpdatingStatus}
-              className="min-h-[44px] px-4 rounded-lg bg-slate-900 text-white font-medium disabled:opacity-50"
+      <div className="bg-surface border border-border rounded-card-lg shadow-card p-6 mb-4">
+        <p className="text-sm font-medium text-text-muted mb-3">Lignes</p>
+        <ul>
+          {order.lineItems.map((line, i) => (
+            <li
+              key={line.id}
+              className={`flex justify-between text-sm py-2 ${i > 0 ? 'border-t border-border' : ''}`}
             >
+              <span>{line.product.name}</span>
+              <span className="text-text-faint tabular-nums">
+                {Number(line.quantity)} {UNIT_LABELS[line.product.unit]}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {generatedMessage && (
+        <div className="bg-surface border border-border rounded-card-lg shadow-card p-6 mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-medium text-text-muted">
+              {sendOutcome === 'failed'
+                ? 'Envoi automatique indisponible — message à envoyer manuellement'
+                : 'Message envoyé'}
+            </p>
+            <button onClick={handleCopyMessage} className="text-sm text-accent hover:underline">
+              {copied ? 'Copié !' : 'Copier'}
+            </button>
+          </div>
+          <pre className="text-sm text-text-muted whitespace-pre-wrap bg-surface-hover rounded-card-md p-3">
+            {generatedMessage.text}
+          </pre>
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-3">
+        {order.status === 'DRAFT' && (
+          <>
+            <button onClick={handleSend} disabled={isSending} className={primaryBtnClass}>
+              {isSending ? 'Envoi…' : 'Envoyer la commande'}
+            </button>
+            <button onClick={() => handleStatusChange('CANCELLED')} disabled={isUpdatingStatus} className={secondaryBtnClass}>
+              Annuler la commande
+            </button>
+          </>
+        )}
+        {order.status === 'SENT' && (
+          <>
+            <button onClick={() => handleStatusChange('CONFIRMED')} disabled={isUpdatingStatus} className={primaryBtnClass}>
+              Marquer confirmée
+            </button>
+            <button onClick={() => handleStatusChange('DELIVERED')} disabled={isUpdatingStatus} className={secondaryBtnClass}>
               Marquer livrée
             </button>
-          )}
-        </div>
+            <button onClick={() => handleStatusChange('CANCELLED')} disabled={isUpdatingStatus} className={secondaryBtnClass}>
+              Annuler
+            </button>
+          </>
+        )}
+        {order.status === 'CONFIRMED' && (
+          <button onClick={() => handleStatusChange('DELIVERED')} disabled={isUpdatingStatus} className={primaryBtnClass}>
+            Marquer livrée
+          </button>
+        )}
       </div>
     </div>
   );

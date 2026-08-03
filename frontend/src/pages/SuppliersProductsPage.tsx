@@ -1,5 +1,4 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ApiRequestError } from '../lib/apiClient';
 
@@ -34,6 +33,13 @@ const UNIT_LABELS: Record<string, string> = {
   ML: 'mL',
   UNITE: 'unité',
 };
+
+const inputClass =
+  'w-full min-h-[44px] rounded-card-md border border-border bg-surface px-3 text-text placeholder:text-text-faint focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft';
+const primaryBtnClass =
+  'min-h-[44px] px-4 rounded-card-md bg-accent text-accent-text font-medium hover:brightness-105 disabled:opacity-50';
+const secondaryBtnClass = 'min-h-[44px] px-3 rounded-card-md border border-border text-sm font-medium hover:border-border-strong';
+const dangerBtnClass = 'min-h-[44px] px-3 rounded-card-md border border-danger/40 text-danger text-sm font-medium hover:bg-danger-soft';
 
 export default function SuppliersProductsPage() {
   const { authFetch, user } = useAuth();
@@ -194,320 +200,248 @@ export default function SuppliersProductsPage() {
       await authFetch(`/api/products/${id}`, { method: 'DELETE' });
       await loadAll();
     } catch (err) {
-      setError(
-        err instanceof ApiRequestError
-          ? err.message
-          : 'Impossible de supprimer ce produit.',
-      );
+      setError(err instanceof ApiRequestError ? err.message : 'Impossible de supprimer ce produit.');
     }
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-8">
-      <div className="max-w-2xl mx-auto space-y-8">
-        <Link to="/menu" className="text-sm text-slate-500 underline">
-          ← Retour à la carte
-        </Link>
+    <div className="max-w-3xl space-y-8">
+      {error && (
+        <p className="text-danger bg-danger-soft border border-danger/30 rounded-card-md px-3 py-2">{error}</p>
+      )}
 
-        {error && <p className="text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-display text-2xl font-bold tracking-tight">Fournisseurs</h2>
+          <button onClick={() => setShowSupplierForm((v) => !v)} className={primaryBtnClass}>
+            {showSupplierForm ? 'Annuler' : '+ Ajouter'}
+          </button>
+        </div>
 
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-bold text-slate-900">Fournisseurs</h1>
-            <button
-              onClick={() => setShowSupplierForm((v) => !v)}
-              className="min-h-[44px] px-4 rounded-lg bg-slate-900 text-white font-medium"
-            >
-              {showSupplierForm ? 'Annuler' : '+ Ajouter'}
+        {showSupplierForm && (
+          <form
+            onSubmit={handleCreateSupplier}
+            className="bg-surface border border-border rounded-card-lg shadow-card p-6 mb-4 space-y-3"
+          >
+            <input
+              placeholder="Nom (ex: Boucherie Fontaine)"
+              required
+              value={supplierName}
+              onChange={(e) => setSupplierName(e.target.value)}
+              className={inputClass}
+            />
+            <input
+              placeholder="Catégorie (ex: Boucherie)"
+              required
+              value={supplierCategory}
+              onChange={(e) => setSupplierCategory(e.target.value)}
+              className={inputClass}
+            />
+            <select value={supplierChannel} onChange={(e) => setSupplierChannel(e.target.value)} className={inputClass}>
+              {Object.entries(CHANNEL_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <button type="submit" disabled={isCreatingSupplier} className={`w-full ${primaryBtnClass}`}>
+              {isCreatingSupplier ? 'Création…' : 'Créer ce fournisseur'}
             </button>
-          </div>
+          </form>
+        )}
 
-          {showSupplierForm && (
-            <form
-              onSubmit={handleCreateSupplier}
-              className="bg-white rounded-2xl border border-slate-200 p-6 mb-4 space-y-3"
-            >
-              <input
-                placeholder="Nom (ex: Boucherie Fontaine)"
-                required
-                value={supplierName}
-                onChange={(e) => setSupplierName(e.target.value)}
-                className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
-              />
-              <input
-                placeholder="Catégorie (ex: Boucherie)"
-                required
-                value={supplierCategory}
-                onChange={(e) => setSupplierCategory(e.target.value)}
-                className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
-              />
-              <select
-                value={supplierChannel}
-                onChange={(e) => setSupplierChannel(e.target.value)}
-                className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
-              >
-                {Object.entries(CHANNEL_LABELS).map(([value, label]) => (
+        {isLoading ? (
+          <p className="text-text-faint">Chargement…</p>
+        ) : (
+          <ul className="space-y-2">
+            {suppliers.map((s) =>
+              editingSupplierId === s.id ? (
+                <li key={s.id}>
+                  <form
+                    onSubmit={(e) => handleUpdateSupplier(e, s.id)}
+                    className="bg-surface border border-border rounded-card-lg shadow-card p-4 space-y-3"
+                  >
+                    <input required value={editSupplierName} onChange={(e) => setEditSupplierName(e.target.value)} className={inputClass} />
+                    <input
+                      required
+                      value={editSupplierCategory}
+                      onChange={(e) => setEditSupplierCategory(e.target.value)}
+                      className={inputClass}
+                    />
+                    <select
+                      value={editSupplierChannel}
+                      onChange={(e) => setEditSupplierChannel(e.target.value)}
+                      className={inputClass}
+                    >
+                      {Object.entries(CHANNEL_LABELS).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="flex gap-2">
+                      <button type="submit" className={`flex-1 ${primaryBtnClass}`}>
+                        Enregistrer
+                      </button>
+                      <button type="button" onClick={() => setEditingSupplierId(null)} className={`flex-1 ${secondaryBtnClass}`}>
+                        Annuler
+                      </button>
+                    </div>
+                  </form>
+                </li>
+              ) : (
+                <li
+                  key={s.id}
+                  className="bg-surface border border-border rounded-card-lg shadow-card p-4 flex items-center justify-between gap-3"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{s.name}</p>
+                    <p className="text-sm text-text-faint">
+                      {s.category} · {CHANNEL_LABELS[s.preferredChannel]}
+                    </p>
+                  </div>
+                  <div className="shrink-0 flex gap-2">
+                    <button onClick={() => startEditSupplier(s)} className={secondaryBtnClass}>
+                      Modifier
+                    </button>
+                    {canDelete && (
+                      <button onClick={() => handleDeleteSupplier(s.id)} className={dangerBtnClass}>
+                        Désactiver
+                      </button>
+                    )}
+                  </div>
+                </li>
+              ),
+            )}
+          </ul>
+        )}
+      </section>
+
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-display text-2xl font-bold tracking-tight">Produits</h2>
+          <button onClick={() => setShowProductForm((v) => !v)} disabled={suppliers.length === 0} className={primaryBtnClass}>
+            {showProductForm ? 'Annuler' : '+ Ajouter'}
+          </button>
+        </div>
+
+        {suppliers.length === 0 && (
+          <p className="text-sm text-text-faint mb-4">Ajoutez d'abord un fournisseur pour pouvoir créer des produits.</p>
+        )}
+
+        {showProductForm && (
+          <form
+            onSubmit={handleCreateProduct}
+            className="bg-surface border border-border rounded-card-lg shadow-card p-6 mb-4 space-y-3"
+          >
+            <select required value={productSupplierId} onChange={(e) => setProductSupplierId(e.target.value)} className={inputClass}>
+              <option value="">Choisir un fournisseur…</option>
+              {suppliers.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+            <input
+              placeholder="Nom du produit (ex: Filet de bœuf)"
+              required
+              value={productName}
+              onChange={(e) => setProductName(e.target.value)}
+              className={inputClass}
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <select value={productUnit} onChange={(e) => setProductUnit(e.target.value)} className={inputClass}>
+                {Object.entries(UNIT_LABELS).map(([value, label]) => (
                   <option key={value} value={value}>
                     {label}
                   </option>
                 ))}
               </select>
-              <button
-                type="submit"
-                disabled={isCreatingSupplier}
-                className="w-full min-h-[44px] rounded-lg bg-slate-900 text-white font-medium disabled:opacity-50"
-              >
-                {isCreatingSupplier ? 'Création…' : 'Créer ce fournisseur'}
-              </button>
-            </form>
-          )}
+              <input
+                type="number"
+                step="0.0001"
+                min="0"
+                placeholder="Prix HT"
+                required
+                value={productPrice}
+                onChange={(e) => setProductPrice(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+            <button type="submit" disabled={isCreatingProduct} className={`w-full ${primaryBtnClass}`}>
+              {isCreatingProduct ? 'Création…' : 'Créer ce produit'}
+            </button>
+          </form>
+        )}
 
-          {isLoading ? (
-            <p className="text-slate-500">Chargement…</p>
-          ) : (
-            <ul className="space-y-2">
-              {suppliers.map((s) =>
-                editingSupplierId === s.id ? (
-                  <li key={s.id}>
-                    <form
-                      onSubmit={(e) => handleUpdateSupplier(e, s.id)}
-                      className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3"
-                    >
-                      <input
-                        required
-                        value={editSupplierName}
-                        onChange={(e) => setEditSupplierName(e.target.value)}
-                        className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
-                      />
-                      <input
-                        required
-                        value={editSupplierCategory}
-                        onChange={(e) => setEditSupplierCategory(e.target.value)}
-                        className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
-                      />
-                      <select
-                        value={editSupplierChannel}
-                        onChange={(e) => setEditSupplierChannel(e.target.value)}
-                        className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
-                      >
-                        {Object.entries(CHANNEL_LABELS).map(([value, label]) => (
+        {isLoading ? (
+          <p className="text-text-faint">Chargement…</p>
+        ) : (
+          <ul className="space-y-2">
+            {products.map((p) =>
+              editingProductId === p.id ? (
+                <li key={p.id}>
+                  <form
+                    onSubmit={(e) => handleUpdateProduct(e, p.id)}
+                    className="bg-surface border border-border rounded-card-lg shadow-card p-4 space-y-3"
+                  >
+                    <input required value={editProductName} onChange={(e) => setEditProductName(e.target.value)} className={inputClass} />
+                    <div className="grid grid-cols-2 gap-3">
+                      <select value={editProductUnit} onChange={(e) => setEditProductUnit(e.target.value)} className={inputClass}>
+                        {Object.entries(UNIT_LABELS).map(([value, label]) => (
                           <option key={value} value={value}>
                             {label}
                           </option>
                         ))}
                       </select>
-                      <div className="flex gap-2">
-                        <button
-                          type="submit"
-                          className="flex-1 min-h-[44px] rounded-lg bg-slate-900 text-white font-medium"
-                        >
-                          Enregistrer
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEditingSupplierId(null)}
-                          className="flex-1 min-h-[44px] rounded-lg border border-slate-300 font-medium"
-                        >
-                          Annuler
-                        </button>
-                      </div>
-                    </form>
-                  </li>
-                ) : (
-                  <li key={s.id} className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-medium text-slate-900 truncate">{s.name}</p>
-                      <p className="text-sm text-slate-500">
-                        {s.category} · {CHANNEL_LABELS[s.preferredChannel]}
-                      </p>
-                    </div>
-                    <div className="shrink-0 flex gap-2">
-                      <button
-                        onClick={() => startEditSupplier(s)}
-                        className="min-h-[44px] px-3 rounded-lg border border-slate-300 text-sm font-medium"
-                      >
-                        Modifier
-                      </button>
-                      {canDelete && (
-                        <button
-                          onClick={() => handleDeleteSupplier(s.id)}
-                          className="min-h-[44px] px-3 rounded-lg border border-red-200 text-red-600 text-sm font-medium"
-                        >
-                          Désactiver
-                        </button>
-                      )}
-                    </div>
-                  </li>
-                ),
-              )}
-            </ul>
-          )}
-        </section>
-
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold text-slate-900">Produits</h2>
-            <button
-              onClick={() => setShowProductForm((v) => !v)}
-              disabled={suppliers.length === 0}
-              className="min-h-[44px] px-4 rounded-lg bg-slate-900 text-white font-medium disabled:opacity-50"
-            >
-              {showProductForm ? 'Annuler' : '+ Ajouter'}
-            </button>
-          </div>
-
-          {suppliers.length === 0 && (
-            <p className="text-sm text-slate-400 mb-4">
-              Ajoutez d'abord un fournisseur pour pouvoir créer des produits.
-            </p>
-          )}
-
-          {showProductForm && (
-            <form
-              onSubmit={handleCreateProduct}
-              className="bg-white rounded-2xl border border-slate-200 p-6 mb-4 space-y-3"
-            >
-              <select
-                required
-                value={productSupplierId}
-                onChange={(e) => setProductSupplierId(e.target.value)}
-                className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
-              >
-                <option value="">Choisir un fournisseur…</option>
-                {suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-              <input
-                placeholder="Nom du produit (ex: Filet de bœuf)"
-                required
-                value={productName}
-                onChange={(e) => setProductName(e.target.value)}
-                className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
-              />
-              <div className="grid grid-cols-2 gap-3">
-                <select
-                  value={productUnit}
-                  onChange={(e) => setProductUnit(e.target.value)}
-                  className="min-h-[44px] rounded-lg border border-slate-300 px-3"
-                >
-                  {Object.entries(UNIT_LABELS).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="number"
-                  step="0.0001"
-                  min="0"
-                  placeholder="Prix HT"
-                  required
-                  value={productPrice}
-                  onChange={(e) => setProductPrice(e.target.value)}
-                  className="min-h-[44px] rounded-lg border border-slate-300 px-3"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={isCreatingProduct}
-                className="w-full min-h-[44px] rounded-lg bg-slate-900 text-white font-medium disabled:opacity-50"
-              >
-                {isCreatingProduct ? 'Création…' : 'Créer ce produit'}
-              </button>
-            </form>
-          )}
-
-          {isLoading ? (
-            <p className="text-slate-500">Chargement…</p>
-          ) : (
-            <ul className="space-y-2">
-              {products.map((p) =>
-                editingProductId === p.id ? (
-                  <li key={p.id}>
-                    <form
-                      onSubmit={(e) => handleUpdateProduct(e, p.id)}
-                      className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3"
-                    >
                       <input
+                        type="number"
+                        step="0.0001"
+                        min="0"
                         required
-                        value={editProductName}
-                        onChange={(e) => setEditProductName(e.target.value)}
-                        className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
+                        value={editProductPrice}
+                        onChange={(e) => setEditProductPrice(e.target.value)}
+                        className={inputClass}
                       />
-                      <div className="grid grid-cols-2 gap-3">
-                        <select
-                          value={editProductUnit}
-                          onChange={(e) => setEditProductUnit(e.target.value)}
-                          className="min-h-[44px] rounded-lg border border-slate-300 px-3"
-                        >
-                          {Object.entries(UNIT_LABELS).map(([value, label]) => (
-                            <option key={value} value={value}>
-                              {label}
-                            </option>
-                          ))}
-                        </select>
-                        <input
-                          type="number"
-                          step="0.0001"
-                          min="0"
-                          required
-                          value={editProductPrice}
-                          onChange={(e) => setEditProductPrice(e.target.value)}
-                          className="min-h-[44px] rounded-lg border border-slate-300 px-3"
-                        />
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          type="submit"
-                          className="flex-1 min-h-[44px] rounded-lg bg-slate-900 text-white font-medium"
-                        >
-                          Enregistrer
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEditingProductId(null)}
-                          className="flex-1 min-h-[44px] rounded-lg border border-slate-300 font-medium"
-                        >
-                          Annuler
-                        </button>
-                      </div>
-                    </form>
-                  </li>
-                ) : (
-                  <li key={p.id} className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-medium text-slate-900 truncate">{p.name}</p>
-                      <p className="text-sm text-slate-500 truncate">{p.supplier.name}</p>
                     </div>
-                    <div className="shrink-0 flex items-center gap-2">
-                      <p className="text-sm text-slate-700 whitespace-nowrap">
-                        {Number(p.currentPriceHT).toFixed(2)} € / {UNIT_LABELS[p.unit]}
-                      </p>
-                      <button
-                        onClick={() => startEditProduct(p)}
-                        className="min-h-[44px] px-3 rounded-lg border border-slate-300 text-sm font-medium"
-                      >
-                        Modifier
+                    <div className="flex gap-2">
+                      <button type="submit" className={`flex-1 ${primaryBtnClass}`}>
+                        Enregistrer
                       </button>
-                      {canDelete && (
-                        <button
-                          onClick={() => handleDeleteProduct(p.id)}
-                          className="min-h-[44px] px-3 rounded-lg border border-red-200 text-red-600 text-sm font-medium"
-                        >
-                          Supprimer
-                        </button>
-                      )}
+                      <button type="button" onClick={() => setEditingProductId(null)} className={`flex-1 ${secondaryBtnClass}`}>
+                        Annuler
+                      </button>
                     </div>
-                  </li>
-                ),
-              )}
-            </ul>
-          )}
-        </section>
-      </div>
+                  </form>
+                </li>
+              ) : (
+                <li
+                  key={p.id}
+                  className="bg-surface border border-border rounded-card-lg shadow-card p-4 flex items-center justify-between gap-3"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{p.name}</p>
+                    <p className="text-sm text-text-faint truncate">{p.supplier.name}</p>
+                  </div>
+                  <div className="shrink-0 flex items-center gap-2">
+                    <p className="text-sm text-text tabular-nums whitespace-nowrap">
+                      {Number(p.currentPriceHT).toFixed(2)} € / {UNIT_LABELS[p.unit]}
+                    </p>
+                    <button onClick={() => startEditProduct(p)} className={secondaryBtnClass}>
+                      Modifier
+                    </button>
+                    {canDelete && (
+                      <button onClick={() => handleDeleteProduct(p.id)} className={dangerBtnClass}>
+                        Supprimer
+                      </button>
+                    )}
+                  </div>
+                </li>
+              ),
+            )}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

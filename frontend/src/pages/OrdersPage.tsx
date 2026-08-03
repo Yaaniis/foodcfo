@@ -2,6 +2,8 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ApiRequestError } from '../lib/apiClient';
+import Badge, { type BadgeTone } from '../components/Badge';
+import EmptyState from '../components/EmptyState';
 
 interface Product {
   id: string;
@@ -28,13 +30,18 @@ const STATUS_LABELS: Record<Order['status'], string> = {
   CANCELLED: 'Annulée',
 };
 
-const STATUS_STYLES: Record<Order['status'], string> = {
-  DRAFT: 'bg-slate-100 text-slate-700',
-  SENT: 'bg-amber-50 text-amber-700 border border-amber-200',
-  CONFIRMED: 'bg-blue-50 text-blue-700 border border-blue-200',
-  DELIVERED: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-  CANCELLED: 'bg-red-50 text-red-700 border border-red-200',
+// Brouillon/Annulée = neutre (pas actif / clos, pas alarmant) ; Envoyée
+// et Confirmée = info (en cours, rien à faire) ; Livrée = succès. Même
+// mapping que celui validé dans l'artefact pour ce même statut.
+const STATUS_TONE: Record<Order['status'], BadgeTone> = {
+  DRAFT: 'neutral',
+  SENT: 'info',
+  CONFIRMED: 'info',
+  DELIVERED: 'success',
+  CANCELLED: 'neutral',
 };
+
+const TABLE_COLS = 'grid-cols-[1fr_110px_80px_120px]';
 
 export default function OrdersPage() {
   const { authFetch } = useAuth();
@@ -114,89 +121,107 @@ export default function OrdersPage() {
   }, {});
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-8">
-      <div className="max-w-2xl mx-auto">
-        <Link to="/" className="text-sm text-slate-500 underline">
-          ← Retour à l'accueil
-        </Link>
-        <div className="flex items-center justify-between mt-2 mb-6">
-          <h1 className="text-2xl font-bold text-slate-900">Commandes fournisseurs</h1>
-          <button
-            onClick={() => (showCart ? setShowCart(false) : openCart())}
-            className="min-h-[44px] px-4 rounded-lg bg-slate-900 text-white font-medium"
-          >
-            {showCart ? 'Annuler' : '+ Nouvelle commande'}
-          </button>
-        </div>
-
-        {error && (
-          <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{error}</p>
-        )}
-
-        {showCart && (
-          <form onSubmit={handleCreateOrders} className="bg-white rounded-2xl border border-slate-200 p-6 mb-6 space-y-4">
-            <p className="text-sm text-slate-500">
-              Renseigne les quantités à commander. Une commande brouillon distincte sera créée par fournisseur.
-            </p>
-            {Object.entries(productsBySupplier).map(([supplierName, supplierProducts]) => (
-              <div key={supplierName}>
-                <p className="text-sm font-semibold text-slate-700 mb-2">{supplierName}</p>
-                <div className="space-y-2">
-                  {supplierProducts.map((p) => (
-                    <div key={p.id} className="flex items-center gap-2">
-                      <span className="flex-1 text-sm text-slate-600 truncate">{p.name}</span>
-                      <input
-                        type="number"
-                        step="0.0001"
-                        min="0"
-                        placeholder="0"
-                        value={quantities[p.id] ?? ''}
-                        onChange={(e) => setQuantities((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                        className="w-24 min-h-[40px] rounded-lg border border-slate-300 px-2 text-sm"
-                      />
-                      <span className="text-xs text-slate-400 w-14">{UNIT_LABELS[p.unit]}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-            {products.length === 0 && <p className="text-sm text-slate-400">Aucun produit disponible.</p>}
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full min-h-[44px] rounded-lg bg-slate-900 text-white font-medium disabled:opacity-50"
-            >
-              {isSubmitting ? 'Création…' : 'Créer la/les commande(s)'}
-            </button>
-          </form>
-        )}
-
-        {isLoading && <p className="text-slate-500">Chargement…</p>}
-
-        <ul className="space-y-2">
-          {orders.map((order) => (
-            <li key={order.id}>
-              <Link
-                to={`/orders/${order.id}`}
-                className="block bg-white rounded-xl border border-slate-200 p-4 hover:border-slate-300"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-medium text-slate-900 truncate">{order.supplier.name}</p>
-                    <p className="text-sm text-slate-500">
-                      {new Date(order.createdAt).toLocaleDateString('fr-FR')} · {order.lineItems.length} ligne(s)
-                    </p>
-                  </div>
-                  <span className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-lg ${STATUS_STYLES[order.status]}`}>
-                    {STATUS_LABELS[order.status]}
-                  </span>
-                </div>
-              </Link>
-            </li>
-          ))}
-          {!isLoading && orders.length === 0 && <p className="text-slate-500">Aucune commande pour l'instant.</p>}
-        </ul>
+    <div className="max-w-3xl">
+      <Link to="/suppliers" className="text-sm text-text-muted hover:text-accent">
+        ← Retour aux fournisseurs
+      </Link>
+      <div className="flex items-center justify-between mt-2 mb-6">
+        <h2 className="font-display text-2xl font-bold tracking-tight">Commandes fournisseurs</h2>
+        <button
+          onClick={() => (showCart ? setShowCart(false) : openCart())}
+          className="min-h-[44px] px-4 rounded-card-md bg-accent text-accent-text font-medium hover:brightness-105"
+        >
+          {showCart ? 'Annuler' : '+ Nouvelle commande'}
+        </button>
       </div>
+
+      {error && (
+        <p className="text-sm text-danger bg-danger-soft border border-danger/30 rounded-card-md px-3 py-2 mb-4">{error}</p>
+      )}
+
+      {showCart && (
+        <form onSubmit={handleCreateOrders} className="bg-surface border border-border rounded-card-lg shadow-card p-6 mb-6 space-y-4">
+          <p className="text-sm text-text-muted">
+            Renseigne les quantités à commander. Une commande brouillon distincte sera créée par fournisseur.
+          </p>
+          {Object.entries(productsBySupplier).map(([supplierName, supplierProducts]) => (
+            <div key={supplierName}>
+              <p className="text-sm font-semibold mb-2">{supplierName}</p>
+              <div className="space-y-2">
+                {supplierProducts.map((p) => (
+                  <div key={p.id} className="flex items-center gap-2">
+                    <span className="flex-1 text-sm text-text-muted truncate">{p.name}</span>
+                    <input
+                      type="number"
+                      step="0.0001"
+                      min="0"
+                      placeholder="0"
+                      value={quantities[p.id] ?? ''}
+                      onChange={(e) => setQuantities((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                      className="w-24 min-h-[40px] rounded-card-md border border-border bg-surface px-2 text-sm text-text placeholder:text-text-faint focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                    />
+                    <span className="text-xs text-text-faint w-14">{UNIT_LABELS[p.unit]}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+          {products.length === 0 && <p className="text-sm text-text-faint">Aucun produit disponible.</p>}
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full min-h-[44px] rounded-card-md bg-accent text-accent-text font-medium disabled:opacity-50 hover:brightness-105"
+          >
+            {isSubmitting ? 'Création…' : 'Créer la/les commande(s)'}
+          </button>
+        </form>
+      )}
+
+      {isLoading && <p className="text-text-faint">Chargement…</p>}
+
+      {!isLoading && orders.length === 0 && (
+        <div className="bg-surface border border-border rounded-card-lg shadow-card">
+          <EmptyState
+            title="Aucune commande pour l'instant"
+            description="Passez votre première commande fournisseur à partir des quantités habituelles."
+            action={
+              <button
+                onClick={openCart}
+                className="min-h-[44px] px-4 rounded-card-md bg-accent text-accent-text font-medium hover:brightness-105"
+              >
+                + Nouvelle commande
+              </button>
+            }
+          />
+        </div>
+      )}
+
+      {orders.length > 0 && (
+        <div className="bg-surface border border-border rounded-card-lg shadow-card overflow-hidden">
+          <div className={`grid ${TABLE_COLS} gap-3 px-5 pb-2.5 pt-4 text-xs font-semibold uppercase tracking-wide text-text-faint`}>
+            <span>Fournisseur</span>
+            <span>Date</span>
+            <span className="text-right">Lignes</span>
+            <span>Statut</span>
+          </div>
+          {orders.map((order) => (
+            <Link
+              key={order.id}
+              to={`/orders/${order.id}`}
+              className={`grid ${TABLE_COLS} gap-3 items-center px-5 py-3.5 border-t border-border hover:bg-surface-hover transition-colors`}
+            >
+              <span className="font-medium truncate">{order.supplier.name}</span>
+              <span className="text-sm text-text-muted tabular-nums">
+                {new Date(order.createdAt).toLocaleDateString('fr-FR')}
+              </span>
+              <span className="text-sm text-text tabular-nums text-right">{order.lineItems.length}</span>
+              <span>
+                <Badge tone={STATUS_TONE[order.status]}>{STATUS_LABELS[order.status]}</Badge>
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
