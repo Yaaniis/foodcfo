@@ -231,4 +231,149 @@ describe('Planning — génération de planning', () => {
       expect(validate.status).toBe(403);
     },
   );
+
+  describe('ajustement après coup (retard, absence)', () => {
+    async function generateValidatedSchedule(accessToken: string, employeeId: string) {
+      await request(app)
+        .post('/api/planning/staffing-requirements')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ weekday: 'MONDAY', role: 'CUISINE', startTime: '11:00', endTime: '15:00', requiredCount: 1 });
+      const generate = await request(app)
+        .post('/api/planning/schedules/generate')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ periodStart: MONDAY, periodEnd: MONDAY });
+      const scheduleId = generate.body.schedule.id as string;
+      const shiftId = generate.body.schedule.shiftAssignments.find(
+        (s: { user: { id: string } }) => s.user.id === employeeId,
+      ).id as string;
+      await request(app)
+        .post(`/api/planning/schedules/${scheduleId}/validate`)
+        .set('Authorization', `Bearer ${accessToken}`);
+      return { scheduleId, shiftId };
+    }
+
+    it('corrige les heures effectives (retard) sur un planning validé', async () => {
+      const restaurant = await bootstrapRestaurant('H');
+      const cuistot = await addEmployee(restaurant.accessToken, 'CuistotH', 'CUISINE');
+      const { scheduleId, shiftId } = await generateValidatedSchedule(restaurant.accessToken, cuistot.id);
+
+      const res = await request(app)
+        .patch(`/api/planning/schedules/${scheduleId}/shifts/${shiftId}`)
+        .set('Authorization', `Bearer ${restaurant.accessToken}`)
+        .send({ actualStartTime: '11:15', actualEndTime: '15:00' });
+
+      expect(res.status).toBe(200);
+      const shift = res.body.schedule.shiftAssignments[0];
+      expect(shift.actualStartTime).toBe('11:15');
+      expect(shift.actualEndTime).toBe('15:00');
+      expect(shift.wasManuallyAdjusted).toBe(true);
+      expect(shift.isAbsent).toBe(false);
+    });
+
+    it('marque une absence avec motif', async () => {
+      const restaurant = await bootstrapRestaurant('I');
+      const cuistot = await addEmployee(restaurant.accessToken, 'CuistotI', 'CUISINE');
+      const { scheduleId, shiftId } = await generateValidatedSchedule(restaurant.accessToken, cuistot.id);
+
+      const res = await request(app)
+        .patch(`/api/planning/schedules/${scheduleId}/shifts/${shiftId}`)
+        .set('Authorization', `Bearer ${restaurant.accessToken}`)
+        .send({ isAbsent: true, absenceNote: 'Arrêt maladie' });
+
+      expect(res.status).toBe(200);
+      const shift = res.body.schedule.shiftAssignments[0];
+      expect(shift.isAbsent).toBe(true);
+      expect(shift.absenceNote).toBe('Arrêt maladie');
+    });
+
+    it('annule une correction précédente (remet à zéro)', async () => {
+      const restaurant = await bootstrapRestaurant('J');
+      const cuistot = await addEmployee(restaurant.accessToken, 'CuistotJ', 'CUISINE');
+      const { scheduleId, shiftId } = await generateValidatedSchedule(restaurant.accessToken, cuistot.id);
+
+      await request(app)
+        .patch(`/api/planning/schedules/${scheduleId}/shifts/${shiftId}`)
+        .set('Authorization', `Bearer ${restaurant.accessToken}`)
+        .send({ isAbsent: true, absenceNote: 'Erreur de saisie' });
+
+      const undo = await request(app)
+        .patch(`/api/planning/schedules/${scheduleId}/shifts/${shiftId}`)
+        .set('Authorization', `Bearer ${restaurant.accessToken}`)
+        .send({ isAbsent: false, absenceNote: null, actualStartTime: null, actualEndTime: null });
+
+      expect(undo.status).toBe(200);
+      const shift = undo.body.schedule.shiftAssignments[0];
+      expect(shift.isAbsent).toBe(false);
+      expect(shift.absenceNote).toBeNull();
+      expect(shift.actualStartTime).toBeNull();
+    });
+
+    it("refuse la correction tant que le planning n'est pas validé (DRAFT)", async () => {
+      const restaurant = await bootstrapRestaurant('K');
+      await addEmployee(restaurant.accessToken, 'CuistotK', 'CUISINE');
+      await request(app)
+        .post('/api/planning/staffing-requirements')
+        .set('Authorization', `Bearer ${restaurant.accessToken}`)
+        .send({ weekday: 'MONDAY', role: 'CUISINE', startTime: '11:00', endTime: '15:00', requiredCount: 1 });
+      const generate = await request(app)
+        .post('/api/planning/schedules/generate')
+        .set('Authorization', `Bearer ${restaurant.accessToken}`)
+        .send({ periodStart: MONDAY, periodEnd: MONDAY });
+      const scheduleId = generate.body.schedule.id as string;
+      const shiftId = generate.body.schedule.shiftAssignments[0].id as string;
+
+      const res = await request(app)
+        .patch(`/api/planning/schedules/${scheduleId}/shifts/${shiftId}`)
+        .set('Authorization', `Bearer ${restaurant.accessToken}`)
+        .send({ isAbsent: true });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('SCHEDULE_NOT_VALIDATED');
+    });
+
+    it("rejette une seule des deux heures effectives, et une heure de fin avant l'heure de début", async () => {
+      const restaurant = await bootstrapRestaurant('L');
+      const cuistot = await addEmployee(restaurant.accessToken, 'CuistotL', 'CUISINE');
+      const { scheduleId, shiftId } = await generateValidatedSchedule(restaurant.accessToken, cuistot.id);
+
+      const onlyStart = await request(app)
+        .patch(`/api/planning/schedules/${scheduleId}/shifts/${shiftId}`)
+        .set('Authorization', `Bearer ${restaurant.accessToken}`)
+        .send({ actualStartTime: '11:00' });
+      expect(onlyStart.status).toBe(400);
+
+      const endBeforeStart = await request(app)
+        .patch(`/api/planning/schedules/${scheduleId}/shifts/${shiftId}`)
+        .set('Authorization', `Bearer ${restaurant.accessToken}`)
+        .send({ actualStartTime: '15:00', actualEndTime: '11:00' });
+      expect(endBeforeStart.status).toBe(400);
+    });
+
+    it('isolation multi-tenant : un restaurant ne peut pas corriger un créneau d’un autre', async () => {
+      const restaurantA = await bootstrapRestaurant('M');
+      const restaurantB = await bootstrapRestaurant('N');
+      const cuistot = await addEmployee(restaurantA.accessToken, 'CuistotM', 'CUISINE');
+      const { scheduleId, shiftId } = await generateValidatedSchedule(restaurantA.accessToken, cuistot.id);
+
+      const res = await request(app)
+        .patch(`/api/planning/schedules/${scheduleId}/shifts/${shiftId}`)
+        .set('Authorization', `Bearer ${restaurantB.accessToken}`)
+        .send({ isAbsent: true });
+      expect(res.status).toBe(404);
+    });
+
+    it('réservé au Gérant', async () => {
+      const restaurant = await bootstrapRestaurant('O');
+      const cuistot = await addEmployee(restaurant.accessToken, 'CuistotO', 'CUISINE');
+      const { scheduleId, shiftId } = await generateValidatedSchedule(restaurant.accessToken, cuistot.id);
+      const login = await request(app)
+        .post('/api/auth/login')
+        .send({ email: `employe-planning-${suffix}-CuistotO@test-foodcfo.local`, password: 'MotDePasseTest123!' });
+
+      const res = await request(app)
+        .patch(`/api/planning/schedules/${scheduleId}/shifts/${shiftId}`)
+        .set('Authorization', `Bearer ${login.body.accessToken}`)
+        .send({ isAbsent: true });
+      expect(res.status).toBe(403);
+    });
+  });
 });

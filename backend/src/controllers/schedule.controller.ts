@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { generateScheduleSchema } from '../schemas/schedule.schemas';
+import { generateScheduleSchema, adjustShiftAssignmentSchema } from '../schemas/schedule.schemas';
 import { generateSchedule, type Weekday } from '../lib/scheduleGenerator';
 import { parseTimeString, formatTimeToString } from '../lib/time';
 
@@ -25,6 +25,8 @@ function serializeAssignment(a: {
   date: Date;
   startTime: Date;
   endTime: Date;
+  actualStartTime: Date | null;
+  actualEndTime: Date | null;
   wasManuallyAdjusted: boolean;
   isAbsent: boolean;
   absenceNote: string | null;
@@ -36,6 +38,8 @@ function serializeAssignment(a: {
     date: toDateOnlyString(a.date),
     startTime: formatTimeToString(a.startTime),
     endTime: formatTimeToString(a.endTime),
+    actualStartTime: a.actualStartTime ? formatTimeToString(a.actualStartTime) : null,
+    actualEndTime: a.actualEndTime ? formatTimeToString(a.actualEndTime) : null,
     wasManuallyAdjusted: a.wasManuallyAdjusted,
     isAbsent: a.isAbsent,
     absenceNote: a.absenceNote,
@@ -167,4 +171,53 @@ export async function validateSchedule(req: Request, res: Response) {
   });
 
   res.json({ schedule: serializeSchedule(schedule) });
+}
+
+// Corrige après coup un créneau d'un planning déjà validé (retard,
+// départ anticipé, absence) — jamais sur un planning encore DRAFT : un
+// brouillon n'a pas encore été confirmé, corriger des heures
+// "effectives" dessus n'a pas de sens (rien n'a encore été travaillé
+// pour de vrai). Seul le Gérant peut modifier le planning (décision de
+// l'utilisateur, 03/08/2026), cette route est donc réservée au même
+// titre que generate/validate.
+export async function adjustShiftAssignment(req: Request, res: Response) {
+  const input = adjustShiftAssignmentSchema.parse(req.body);
+
+  const schedule = await prisma.schedule.findFirst({
+    where: { id: req.params.scheduleId, restaurantId: req.user!.restaurantId },
+  });
+  if (!schedule) {
+    return res.status(404).json({ error: 'NOT_FOUND', message: 'Planning introuvable.' });
+  }
+  if (schedule.status !== 'VALIDATED') {
+    return res.status(400).json({
+      error: 'SCHEDULE_NOT_VALIDATED',
+      message: "Seul un planning validé peut être corrigé après coup (retard, absence).",
+    });
+  }
+
+  const shift = await prisma.shiftAssignment.findFirst({
+    where: { id: req.params.shiftId, scheduleId: schedule.id },
+  });
+  if (!shift) {
+    return res.status(404).json({ error: 'NOT_FOUND', message: 'Créneau introuvable.' });
+  }
+
+  const data: Prisma.ShiftAssignmentUpdateInput = { wasManuallyAdjusted: true };
+  if (input.isAbsent !== undefined) data.isAbsent = input.isAbsent;
+  if (input.absenceNote !== undefined) data.absenceNote = input.absenceNote;
+  if (input.actualStartTime !== undefined) {
+    data.actualStartTime = input.actualStartTime === null ? null : parseTimeString(input.actualStartTime);
+  }
+  if (input.actualEndTime !== undefined) {
+    data.actualEndTime = input.actualEndTime === null ? null : parseTimeString(input.actualEndTime);
+  }
+
+  await prisma.shiftAssignment.update({ where: { id: shift.id }, data });
+
+  const updatedSchedule = await prisma.schedule.findFirstOrThrow({
+    where: { id: schedule.id },
+    include: SCHEDULE_INCLUDE,
+  });
+  res.json({ schedule: serializeSchedule(updatedSchedule) });
 }

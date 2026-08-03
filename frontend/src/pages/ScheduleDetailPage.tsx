@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth, type UserRole } from '../context/AuthContext';
 import { ApiRequestError } from '../lib/apiClient';
@@ -12,6 +12,9 @@ interface ShiftAssignment {
   date: string;
   startTime: string;
   endTime: string;
+  actualStartTime: string | null;
+  actualEndTime: string | null;
+  wasManuallyAdjusted: boolean;
   isAbsent: boolean;
   absenceNote: string | null;
 }
@@ -87,6 +90,64 @@ export default function ScheduleDetailPage() {
     }
   }
 
+  // --- Correction après coup (retard, absence) ---
+  const [editingShiftId, setEditingShiftId] = useState<string | null>(null);
+  const [editMode, setEditMode] = useState<'present' | 'absent'>('present');
+  const [editActualStart, setEditActualStart] = useState('');
+  const [editActualEnd, setEditActualEnd] = useState('');
+  const [editAbsenceNote, setEditAbsenceNote] = useState('');
+  const [editError, setEditError] = useState<string | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  function startEdit(shift: ShiftAssignment) {
+    setEditingShiftId(shift.id);
+    setEditMode(shift.isAbsent ? 'absent' : 'present');
+    setEditActualStart(shift.actualStartTime ?? shift.startTime);
+    setEditActualEnd(shift.actualEndTime ?? shift.endTime);
+    setEditAbsenceNote(shift.absenceNote ?? '');
+    setEditError(null);
+  }
+
+  async function submitAdjustment(shiftId: string, body: Record<string, unknown>) {
+    setEditError(null);
+    setIsSavingEdit(true);
+    try {
+      const data = await authFetch<{ schedule: ScheduleDetail }>(
+        `/api/planning/schedules/${scheduleId}/shifts/${shiftId}`,
+        { method: 'PATCH', body: JSON.stringify(body) },
+      );
+      setSchedule(data.schedule);
+      setEditingShiftId(null);
+    } catch (err) {
+      setEditError(err instanceof ApiRequestError ? err.message : 'Impossible d’enregistrer cette correction.');
+    } finally {
+      setIsSavingEdit(false);
+    }
+  }
+
+  function handleSaveEdit(e: FormEvent, shiftId: string) {
+    e.preventDefault();
+    if (editMode === 'absent') {
+      submitAdjustment(shiftId, {
+        isAbsent: true,
+        absenceNote: editAbsenceNote || null,
+        actualStartTime: null,
+        actualEndTime: null,
+      });
+    } else {
+      submitAdjustment(shiftId, {
+        isAbsent: false,
+        absenceNote: null,
+        actualStartTime: editActualStart,
+        actualEndTime: editActualEnd,
+      });
+    }
+  }
+
+  function handleClearAdjustment(shiftId: string) {
+    submitAdjustment(shiftId, { isAbsent: false, absenceNote: null, actualStartTime: null, actualEndTime: null });
+  }
+
   const shiftsByDate = (schedule?.shiftAssignments ?? []).reduce<Record<string, ShiftAssignment[]>>((acc, s) => {
     (acc[s.date] ??= []).push(s);
     return acc;
@@ -131,17 +192,129 @@ export default function ScheduleDetailPage() {
                 <div key={date} className="bg-white rounded-2xl border border-slate-200 p-4">
                   <p className="font-medium text-slate-900 mb-3 capitalize">{formatDateFr(date)}</p>
                   <ul className="space-y-2">
-                    {shifts.map((s) => (
-                      <li key={s.id} className="flex items-center justify-between gap-3 text-sm">
-                        <span className="text-slate-700">
-                          {s.user.firstName} {s.user.lastName} · {ROLE_LABELS[s.role]}
-                        </span>
-                        <span className="text-slate-500 shrink-0">
-                          {s.startTime}–{s.endTime}
-                          {s.isAbsent && <span className="ml-2 text-red-600 font-medium">Absent</span>}
-                        </span>
-                      </li>
-                    ))}
+                    {shifts.map((s) =>
+                      editingShiftId === s.id ? (
+                        <li key={s.id} className="rounded-xl border border-slate-200 p-3">
+                          <form onSubmit={(e) => handleSaveEdit(e, s.id)} className="space-y-3">
+                            <p className="text-sm font-medium text-slate-700">
+                              {s.user.firstName} {s.user.lastName} · {ROLE_LABELS[s.role]}
+                            </p>
+                            <div className="flex gap-4 text-sm">
+                              <label className="flex items-center gap-2">
+                                <input
+                                  type="radio"
+                                  checked={editMode === 'present'}
+                                  onChange={() => setEditMode('present')}
+                                />
+                                Présent (corriger les heures)
+                              </label>
+                              <label className="flex items-center gap-2">
+                                <input
+                                  type="radio"
+                                  checked={editMode === 'absent'}
+                                  onChange={() => setEditMode('absent')}
+                                />
+                                Absent
+                              </label>
+                            </div>
+                            {editMode === 'present' ? (
+                              <div className="grid grid-cols-2 gap-3">
+                                <label className="text-xs text-slate-600">
+                                  Début effectif
+                                  <input
+                                    type="time"
+                                    required
+                                    value={editActualStart}
+                                    onChange={(e) => setEditActualStart(e.target.value)}
+                                    className="mt-1 w-full min-h-[40px] rounded-lg border border-slate-300 px-2 text-sm"
+                                  />
+                                </label>
+                                <label className="text-xs text-slate-600">
+                                  Fin effective
+                                  <input
+                                    type="time"
+                                    required
+                                    value={editActualEnd}
+                                    onChange={(e) => setEditActualEnd(e.target.value)}
+                                    className="mt-1 w-full min-h-[40px] rounded-lg border border-slate-300 px-2 text-sm"
+                                  />
+                                </label>
+                              </div>
+                            ) : (
+                              <input
+                                placeholder="Motif (optionnel)"
+                                value={editAbsenceNote}
+                                onChange={(e) => setEditAbsenceNote(e.target.value)}
+                                className="w-full min-h-[40px] rounded-lg border border-slate-300 px-2 text-sm"
+                              />
+                            )}
+                            {editError && (
+                              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                                {editError}
+                              </p>
+                            )}
+                            <div className="flex gap-2">
+                              <button
+                                type="submit"
+                                disabled={isSavingEdit}
+                                className="flex-1 min-h-[40px] rounded-lg bg-slate-900 text-white text-sm font-medium disabled:opacity-50"
+                              >
+                                {isSavingEdit ? 'Enregistrement…' : 'Enregistrer'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingShiftId(null)}
+                                className="flex-1 min-h-[40px] rounded-lg border border-slate-300 text-sm font-medium"
+                              >
+                                Annuler
+                              </button>
+                            </div>
+                          </form>
+                        </li>
+                      ) : (
+                        <li key={s.id} className="flex items-center justify-between gap-3 text-sm">
+                          <span className="text-slate-700 min-w-0">
+                            {s.user.firstName} {s.user.lastName} · {ROLE_LABELS[s.role]}
+                            {s.wasManuallyAdjusted && (
+                              <span className="ml-2 text-xs text-slate-400 font-normal">(ajusté)</span>
+                            )}
+                          </span>
+                          <span className="text-slate-500 shrink-0 flex items-center gap-2">
+                            {s.isAbsent ? (
+                              <span className="text-red-600 font-medium">
+                                Absent{s.absenceNote ? ` · ${s.absenceNote}` : ''}
+                              </span>
+                            ) : (
+                              <>
+                                {s.startTime}–{s.endTime}
+                                {s.actualStartTime && s.actualEndTime && (
+                                  <span className="text-slate-400">
+                                    {' '}
+                                    (effectif {s.actualStartTime}–{s.actualEndTime})
+                                  </span>
+                                )}
+                              </>
+                            )}
+                            {canManage && schedule.status === 'VALIDATED' && (
+                              <button
+                                onClick={() => startEdit(s)}
+                                className="min-h-[32px] px-2 rounded-lg border border-slate-300 text-xs font-medium"
+                              >
+                                Corriger
+                              </button>
+                            )}
+                            {canManage && schedule.status === 'VALIDATED' && s.wasManuallyAdjusted && (
+                              <button
+                                onClick={() => handleClearAdjustment(s.id)}
+                                className="min-h-[32px] px-2 rounded-lg border border-slate-300 text-xs font-medium"
+                              >
+                                Effacer
+                              </button>
+                            )}
+                          </span>
+                        </li>
+                      ),
+                    )}
                   </ul>
                 </div>
               ))}

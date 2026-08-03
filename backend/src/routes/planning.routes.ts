@@ -14,6 +14,7 @@ import {
   getSchedule,
   generateScheduleForRestaurant,
   validateSchedule,
+  adjustShiftAssignment,
 } from '../controllers/schedule.controller';
 import { exportHoursSummaryCsv } from '../controllers/hoursSummary.controller';
 import { requireAuth } from '../middleware/auth';
@@ -53,5 +54,10 @@ planningRouter.delete(
 
 planningRouter.post('/schedules/generate', requireRole('GERANT'), asyncHandler(generateScheduleForRestaurant));
 planningRouter.post('/schedules/:id/validate', requireRole('GERANT'), asyncHandler(validateSchedule));
+planningRouter.patch(
+  '/schedules/:scheduleId/shifts/:shiftId',
+  requireRole('GERANT'),
+  asyncHandler(adjustShiftAssignment),
+);
 
 planningRouter.get('/hours-summary.csv', requireRole('GERANT'), asyncHandler(exportHoursSummaryCsv));
