@@ -203,15 +203,29 @@ export async function adjustShiftAssignment(req: Request, res: Response) {
     return res.status(404).json({ error: 'NOT_FOUND', message: 'Créneau introuvable.' });
   }
 
-  const data: Prisma.ShiftAssignmentUpdateInput = { wasManuallyAdjusted: true };
+  const nextIsAbsent = input.isAbsent !== undefined ? input.isAbsent : shift.isAbsent;
+  const nextAbsenceNote = input.absenceNote !== undefined ? input.absenceNote : shift.absenceNote;
+  const nextActualStartTime =
+    input.actualStartTime !== undefined
+      ? input.actualStartTime === null ? null : parseTimeString(input.actualStartTime)
+      : shift.actualStartTime;
+  const nextActualEndTime =
+    input.actualEndTime !== undefined
+      ? input.actualEndTime === null ? null : parseTimeString(input.actualEndTime)
+      : shift.actualEndTime;
+
+  // Un créneau redevient "non ajusté" quand la correction ramène les
+  // quatre champs à leur état neutre (bouton "Effacer" côté frontend) —
+  // sinon wasManuallyAdjusted restait bloqué à true pour toujours dès la
+  // première correction, même après un "Effacer" complet.
+  const isFullyCleared =
+    !nextIsAbsent && nextAbsenceNote === null && nextActualStartTime === null && nextActualEndTime === null;
+
+  const data: Prisma.ShiftAssignmentUpdateInput = { wasManuallyAdjusted: !isFullyCleared };
   if (input.isAbsent !== undefined) data.isAbsent = input.isAbsent;
   if (input.absenceNote !== undefined) data.absenceNote = input.absenceNote;
-  if (input.actualStartTime !== undefined) {
-    data.actualStartTime = input.actualStartTime === null ? null : parseTimeString(input.actualStartTime);
-  }
-  if (input.actualEndTime !== undefined) {
-    data.actualEndTime = input.actualEndTime === null ? null : parseTimeString(input.actualEndTime);
-  }
+  if (input.actualStartTime !== undefined) data.actualStartTime = nextActualStartTime;
+  if (input.actualEndTime !== undefined) data.actualEndTime = nextActualEndTime;
 
   await prisma.shiftAssignment.update({ where: { id: shift.id }, data });
 

@@ -291,10 +291,11 @@ describe('Planning — génération de planning', () => {
       const cuistot = await addEmployee(restaurant.accessToken, 'CuistotJ', 'CUISINE');
       const { scheduleId, shiftId } = await generateValidatedSchedule(restaurant.accessToken, cuistot.id);
 
-      await request(app)
+      const adjust = await request(app)
         .patch(`/api/planning/schedules/${scheduleId}/shifts/${shiftId}`)
         .set('Authorization', `Bearer ${restaurant.accessToken}`)
         .send({ isAbsent: true, absenceNote: 'Erreur de saisie' });
+      expect(adjust.body.schedule.shiftAssignments[0].wasManuallyAdjusted).toBe(true);
 
       const undo = await request(app)
         .patch(`/api/planning/schedules/${scheduleId}/shifts/${shiftId}`)
@@ -306,6 +307,9 @@ describe('Planning — génération de planning', () => {
       expect(shift.isAbsent).toBe(false);
       expect(shift.absenceNote).toBeNull();
       expect(shift.actualStartTime).toBeNull();
+      // Un "effacer" complet doit retirer le statut "ajusté" — sinon le tag
+      // "(ajusté)" et le bouton "Effacer" restent affichés pour toujours.
+      expect(shift.wasManuallyAdjusted).toBe(false);
     });
 
     it("refuse la correction tant que le planning n'est pas validé (DRAFT)", async () => {
