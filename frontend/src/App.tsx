@@ -11,6 +11,7 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import AccountPage from './pages/AccountPage';
 import RestaurantSettingsPage from './pages/RestaurantSettingsPage';
+import PosPage from './pages/PosPage';
 import TeamPage from './pages/TeamPage';
 import MenuPage from './pages/MenuPage';
 import RecipePage from './pages/RecipePage';
@@ -66,6 +67,7 @@ function App() {
                 <Route path="/consolidated" element={<ConsolidatedPage />} />
                 <Route path="/billing" element={<BillingPage />} />
                 <Route path="/restaurant-settings" element={<RestaurantSettingsPage />} />
+                <Route path="/pos" element={<PosPage />} />
                 <Route path="/control" element={<ControlPage />} />
                 <Route path="/control/:organism" element={<ControlOrganismPage />} />
               </Route>

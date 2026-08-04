@@ -109,6 +109,7 @@ const RELATED_ROUTES: { prefix: string; navPath: string | null; label: string }[
   { prefix: '/team', navPath: null, label: 'Équipe' },
   { prefix: '/billing', navPath: null, label: 'Facturation' },
   { prefix: '/restaurant-settings', navPath: null, label: 'Paramètres du restaurant' },
+  { prefix: '/pos', navPath: null, label: 'Caisse enregistreuse' },
 ];
 
 function resolveRoute(pathname: string): { navPath: string | null; label: string } {
@@ -220,6 +221,9 @@ export default function AppShell() {
                       </NavLink>
                       <NavLink to="/restaurant-settings" className={menuItemClass}>
                         Paramètres du restaurant
+                      </NavLink>
+                      <NavLink to="/pos" className={menuItemClass}>
+                        Caisse enregistreuse
                       </NavLink>
                     </>
                   )}
