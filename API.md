@@ -194,6 +194,20 @@ Catégories de documents suggérées par organisme (aide à la saisie côté fro
 
 Frontend : `/control` (grille des 5 organismes) et `/control/:organism` (dossier + dépôt de documents). Pas de vrais logos officiels affichés (droits/risque de laisser penser à un partenariat — décision 7.0) : badges typographiques neutres à la place.
 
+## Caisse enregistreuse (POS) — `/api/pos` (Phase 9)
+
+Rapprochement des ventes remontées par la caisse avec les plats de la carte. Pas de endpoint de création de vente : contrairement aux factures, une vente doit toujours provenir de la caisse elle-même (webhook/polling — mécanisme réel pas encore construit, dépend du premier système intégré, voir `FoodCFO_PLAN.md` Phase 9) ; les ventes de test sont injectées directement en base par les tests d'intégration, pas via l'API publique.
+
+| Méthode | Route | Rôle | Description |
+|---|---|---|---|
+| GET | `/connections` | GERANT | Liste les connexions caisse du restaurant |
+| POST | `/connections` | GERANT | `{ provider }` (`LIGHTSPEED`\|`LADDITION`\|`ZELTY`\|`INNOVORDER`\|`CLYO_SYSTEMS`) — `409 CONNECTION_ALREADY_ACTIVE` si une connexion est déjà active (une seule à la fois, on change de caisse plutôt que d'en cumuler) |
+| POST | `/connections/:id/disconnect` | GERANT | Désactive la connexion (`isActive: false`, `disconnectedAt`) sans la supprimer — les ventes déjà remontées restent consultables |
+| GET | `/sales` | GERANT, CUISINE | Liste les ventes avec leurs lignes ; chaque vente porte un `needsReview` calculé (au moins une ligne dont `menuItemId` est `null`) |
+| PATCH | `/sales/:saleId/line-items/:lineItemId` | GERANT, CUISINE | Corrige une ligne (`menuItemId`, `quantity`, `unitPriceTTC`, `totalPriceTTC`) — `rawLabel` volontairement non modifiable (préserve ce que la caisse a réellement transmis) ; marque `wasManuallyEdited: true` |
+
+Rapprochement automatique (`lib/posMatching.ts`, `findBestMenuItemMatch`) : correspondance exacte du libellé normalisé (casse/accents/espaces ignorés) en priorité, repli sur une correspondance partielle uniquement si elle est unique — sinon `null` plutôt que de deviner, la ligne attend une correction manuelle. Pas encore appelée en production : elle sera invoquée à la création de chaque `PosSaleLineItem`, une fois le mécanisme de connexion réel construit.
+
 ## Exports et rapports — `/api/exports`, `/api/reports`
 
 Réservé à GERANT.
