@@ -3,6 +3,11 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ApiRequestError } from '../lib/apiClient';
 
+const inputClass =
+  'w-full min-h-[44px] rounded-card-md border border-border bg-surface px-3 text-text placeholder:text-text-faint focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft';
+const primaryBtnClass =
+  'w-full min-h-[44px] rounded-card-md bg-accent text-accent-text font-medium hover:brightness-105 disabled:opacity-50';
+
 export default function AccountPage() {
   const { user, authFetch, logout } = useAuth();
 
@@ -43,73 +48,65 @@ export default function AccountPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-8">
-      <div className="max-w-2xl mx-auto">
-        <Link to="/" className="text-sm text-slate-500 underline">
-          ← Retour à l'accueil
-        </Link>
-        <h1 className="text-2xl font-bold text-slate-900 mt-2 mb-6">Mon compte</h1>
+    <div className="max-w-3xl">
+      <Link to="/" className="text-sm text-text-muted hover:text-accent">
+        ← Retour à l'accueil
+      </Link>
+      <h2 className="font-display text-2xl font-bold tracking-tight mt-2 mb-6">Mon compte</h2>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-6">
-          <p className="font-medium text-slate-900">
-            {user?.firstName} {user?.lastName}
-          </p>
-          <p className="text-sm text-slate-500">{user?.email}</p>
-        </div>
+      <div className="bg-surface border border-border rounded-card-lg shadow-card p-6 mb-6">
+        <p className="font-medium">
+          {user?.firstName} {user?.lastName}
+        </p>
+        <p className="text-sm text-text-muted">{user?.email}</p>
+      </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <p className="text-sm font-medium text-slate-700 mb-4">Changer de mot de passe</p>
+      <div className="bg-surface border border-border rounded-card-lg shadow-card p-6">
+        <p className="text-sm font-medium text-text-muted mb-4">Changer de mot de passe</p>
 
-          {message ? (
-            <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
-              {message}
-            </p>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-3">
-              <input
-                type="password"
-                placeholder="Mot de passe actuel"
-                autoComplete="current-password"
-                required
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
-              />
-              <input
-                type="password"
-                placeholder="Nouveau mot de passe (8 caractères min.)"
-                autoComplete="new-password"
-                minLength={8}
-                required
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
-              />
-              <input
-                type="password"
-                placeholder="Confirmer le nouveau mot de passe"
-                autoComplete="new-password"
-                minLength={8}
-                required
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
-              />
+        {message ? (
+          <p className="text-sm text-good bg-good-soft border border-good/30 rounded-card-md px-3 py-2">{message}</p>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <input
+              type="password"
+              placeholder="Mot de passe actuel"
+              autoComplete="current-password"
+              required
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              className={inputClass}
+            />
+            <input
+              type="password"
+              placeholder="Nouveau mot de passe (8 caractères min.)"
+              autoComplete="new-password"
+              minLength={8}
+              required
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className={inputClass}
+            />
+            <input
+              type="password"
+              placeholder="Confirmer le nouveau mot de passe"
+              autoComplete="new-password"
+              minLength={8}
+              required
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className={inputClass}
+            />
 
-              {error && (
-                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
-              )}
+            {error && (
+              <p className="text-sm text-danger bg-danger-soft border border-danger/30 rounded-card-md px-3 py-2">{error}</p>
+            )}
 
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full min-h-[44px] rounded-lg bg-slate-900 text-white font-medium disabled:opacity-50"
-              >
-                {isSubmitting ? 'Modification…' : 'Changer le mot de passe'}
-              </button>
-            </form>
-          )}
-        </div>
+            <button type="submit" disabled={isSubmitting} className={primaryBtnClass}>
+              {isSubmitting ? 'Modification…' : 'Changer le mot de passe'}
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );

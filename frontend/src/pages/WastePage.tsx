@@ -10,6 +10,7 @@ import {
   removeFromQueue,
   type QueuedWasteEntry,
 } from '../lib/offlineQueue';
+import EmptyState from '../components/EmptyState';
 
 interface Product {
   id: string;
@@ -49,6 +50,13 @@ const REASON_LABELS: Record<string, string> = {
 function formatEuros(value: number): string {
   return value.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+
+const inputClass =
+  'w-full min-h-[44px] rounded-card-md border border-border bg-surface px-3 text-text placeholder:text-text-faint focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft';
+const primaryBtnClass =
+  'min-h-[44px] px-4 rounded-card-md bg-accent text-accent-text font-medium hover:brightness-105 disabled:opacity-50';
+const dangerBtnClass =
+  'min-h-[44px] px-3 rounded-card-md border border-danger/40 text-danger text-sm font-medium hover:bg-danger-soft';
 
 export default function WastePage() {
   const { authFetch } = useAuth();
@@ -234,183 +242,179 @@ export default function WastePage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-8">
-      <div className="max-w-2xl mx-auto">
-        <Link to="/" className="text-sm text-slate-500 underline">
-          ← Retour à l'accueil
-        </Link>
-        <h1 className="text-2xl font-bold text-slate-900 mt-2 mb-6">Gaspillage et pertes</h1>
+    <div className="max-w-3xl">
+      <Link to="/menu" className="text-sm text-text-muted hover:text-accent">
+        ← Retour à la carte
+      </Link>
+      <h2 className="font-display text-2xl font-bold tracking-tight mt-2 mb-6">Gaspillage et pertes</h2>
 
-        {!isOnline && (
-          <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
-            Mode hors-ligne — les déclarations sont enregistrées localement et seront envoyées au retour du réseau.
+      {!isOnline && (
+        <p className="text-sm text-warn bg-warn-soft border border-warn/30 rounded-card-md px-3 py-2 mb-4">
+          Mode hors-ligne — les déclarations sont enregistrées localement et seront envoyées au retour du réseau.
+        </p>
+      )}
+      {queuedEntries.length > 0 && (
+        <div className="bg-surface-hover border border-border rounded-card-md px-3 py-2 mb-4 space-y-2">
+          <p className="text-sm text-text-muted">
+            {queuedEntries.length} déclaration(s) en attente de synchronisation.
           </p>
-        )}
-        {queuedEntries.length > 0 && (
-          <div className="bg-slate-100 border border-slate-200 rounded-lg px-3 py-2 mb-4 space-y-2">
-            <p className="text-sm text-slate-600">
-              {queuedEntries.length} déclaration(s) en attente de synchronisation.
-            </p>
-            <ul className="space-y-1">
-              {queuedEntries.map((entry) => (
-                <li key={entry.localId} className="flex items-center justify-between gap-2 text-sm text-slate-700">
-                  <span className="truncate">
-                    {queuedEntryLabel(entry)} · {entry.quantity} · {REASON_LABELS[entry.reason] ?? entry.reason}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleDiscardQueued(entry.localId)}
-                    className="shrink-0 min-h-[32px] px-2 text-xs text-red-600 underline"
-                  >
-                    Abandonner
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {syncNotice && (
-          <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 mb-4">
-            {syncNotice}
-          </p>
-        )}
+          <ul className="space-y-1">
+            {queuedEntries.map((entry) => (
+              <li key={entry.localId} className="flex items-center justify-between gap-2 text-sm text-text">
+                <span className="truncate">
+                  {queuedEntryLabel(entry)} · {entry.quantity} · {REASON_LABELS[entry.reason] ?? entry.reason}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleDiscardQueued(entry.localId)}
+                  className="shrink-0 min-h-[32px] px-2 text-xs text-danger hover:underline"
+                >
+                  Abandonner
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {syncNotice && (
+        <p className="text-sm text-good bg-good-soft border border-good/30 rounded-card-md px-3 py-2 mb-4">
+          {syncNotice}
+        </p>
+      )}
 
-        {stats && (
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-6">
-            <p className="text-sm font-medium text-slate-700 mb-3">Ce mois-ci</p>
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <div className="p-4 rounded-lg bg-red-50">
-                <p className="text-xs text-red-700">Impact sur la marge</p>
-                <p className="text-2xl font-bold text-red-700">{formatEuros(stats.totalValue)} €</p>
-              </div>
-              <div className="p-4 rounded-lg bg-slate-50">
-                <p className="text-xs text-slate-500">Déclarations</p>
-                <p className="text-2xl font-bold text-slate-900">{stats.entryCount}</p>
-              </div>
+      {stats && (
+        <div className="bg-surface border border-border rounded-card-lg shadow-card p-6 mb-6">
+          <p className="text-sm font-medium text-text-muted mb-3">Ce mois-ci</p>
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="p-4 rounded-card-md bg-surface-hover">
+              <p className="text-xs text-text-faint uppercase tracking-wide">Impact sur la marge</p>
+              <p className="text-2xl font-bold font-display mt-0.5">{formatEuros(stats.totalValue)} €</p>
             </div>
-            {stats.byCategory.length > 0 && (
-              <div>
-                <p className="text-xs text-slate-500 mb-2">Par catégorie</p>
-                <ul className="space-y-1">
-                  {stats.byCategory.map((c) => (
-                    <li key={c.category} className="flex justify-between text-sm">
-                      <span className="text-slate-700">{c.category}</span>
-                      <span className="text-slate-500">{formatEuros(c.value)} €</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+            <div className="p-4 rounded-card-md bg-surface-hover">
+              <p className="text-xs text-text-faint uppercase tracking-wide">Déclarations</p>
+              <p className="text-2xl font-bold font-display mt-0.5">{stats.entryCount}</p>
+            </div>
           </div>
-        )}
+          {stats.byCategory.length > 0 && (
+            <div>
+              <p className="text-xs text-text-faint uppercase tracking-wide mb-2">Par catégorie</p>
+              <ul className="space-y-1">
+                {stats.byCategory.map((c) => (
+                  <li key={c.category} className="flex justify-between text-sm">
+                    <span className="text-text">{c.category}</span>
+                    <span className="text-text-muted tabular-nums">{formatEuros(c.value)} €</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
 
-        <form onSubmit={handleDeclare} className="bg-white rounded-2xl border border-slate-200 p-6 mb-6 space-y-3">
-          <p className="text-sm font-medium text-slate-700">Déclarer une perte</p>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setItemType('product');
-                setSelectedId('');
-              }}
-              className={`flex-1 min-h-[40px] rounded-lg text-sm font-medium border ${
-                itemType === 'product' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300'
-              }`}
-            >
-              Produit brut
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setItemType('menuItem');
-                setSelectedId('');
-              }}
-              className={`flex-1 min-h-[40px] rounded-lg text-sm font-medium border ${
-                itemType === 'menuItem' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300'
-              }`}
-            >
-              Plat fini
-            </button>
-          </div>
-
-          <select
-            value={selectedId}
-            onChange={(e) => setSelectedId(e.target.value)}
-            className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
+      <form onSubmit={handleDeclare} className="bg-surface border border-border rounded-card-lg shadow-card p-6 mb-6 space-y-3">
+        <p className="text-sm font-medium text-text-muted">Déclarer une perte</p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setItemType('product');
+              setSelectedId('');
+            }}
+            className={`flex-1 min-h-[40px] rounded-card-md text-sm font-medium border transition-colors ${
+              itemType === 'product'
+                ? 'bg-accent text-accent-text border-accent'
+                : 'bg-surface text-text-muted border-border hover:border-border-strong'
+            }`}
           >
-            <option value="">{itemType === 'product' ? 'Choisir un produit…' : 'Choisir un plat…'}</option>
-            {(itemType === 'product' ? products : menuItems).map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
+            Produit brut
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setItemType('menuItem');
+              setSelectedId('');
+            }}
+            className={`flex-1 min-h-[40px] rounded-card-md text-sm font-medium border transition-colors ${
+              itemType === 'menuItem'
+                ? 'bg-accent text-accent-text border-accent'
+                : 'bg-surface text-text-muted border-border hover:border-border-strong'
+            }`}
+          >
+            Plat fini
+          </button>
+        </div>
+
+        <select value={selectedId} onChange={(e) => setSelectedId(e.target.value)} className={inputClass}>
+          <option value="">{itemType === 'product' ? 'Choisir un produit…' : 'Choisir un plat…'}</option>
+          {(itemType === 'product' ? products : menuItems).map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.name}
+            </option>
+          ))}
+        </select>
+
+        <div className="grid grid-cols-2 gap-3">
+          <input
+            type="number"
+            step="0.0001"
+            min="0"
+            placeholder="Quantité"
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
+            className={inputClass}
+          />
+          <select value={reason} onChange={(e) => setReason(e.target.value)} className={inputClass}>
+            {Object.entries(REASON_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
               </option>
             ))}
           </select>
+        </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <input
-              type="number"
-              step="0.0001"
-              min="0"
-              placeholder="Quantité"
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              className="min-h-[44px] rounded-lg border border-slate-300 px-3"
-            />
-            <select
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              className="min-h-[44px] rounded-lg border border-slate-300 px-3"
-            >
-              {Object.entries(REASON_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
+        {error && (
+          <p className="text-sm text-danger bg-danger-soft border border-danger/30 rounded-card-md px-3 py-2">{error}</p>
+        )}
 
-          {error && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
-          )}
+        <button type="submit" disabled={isSubmitting} className={`w-full ${primaryBtnClass}`}>
+          {isSubmitting ? 'Déclaration…' : 'Déclarer la perte'}
+        </button>
+      </form>
 
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full min-h-[44px] rounded-lg bg-slate-900 text-white font-medium disabled:opacity-50"
-          >
-            {isSubmitting ? 'Déclaration…' : 'Déclarer la perte'}
-          </button>
-        </form>
+      {isLoading && <p className="text-text-faint">Chargement…</p>}
 
-        {isLoading && <p className="text-slate-500">Chargement…</p>}
+      {!isLoading && entries.length === 0 && (
+        <div className="bg-surface border border-border rounded-card-lg shadow-card">
+          <EmptyState
+            title="Aucune perte déclarée"
+            description="Les pertes déclarées par l'équipe apparaîtront ici."
+          />
+        </div>
+      )}
 
+      {entries.length > 0 && (
         <ul className="space-y-2">
           {entries.map((entry) => (
-            <li key={entry.id} className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between gap-3">
+            <li key={entry.id} className="bg-surface border border-border rounded-card-lg shadow-card p-4 flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="font-medium text-slate-900 truncate">{entry.product?.name ?? entry.menuItem?.name}</p>
-                <p className="text-sm text-slate-500">
+                <p className="font-medium truncate">{entry.product?.name ?? entry.menuItem?.name}</p>
+                <p className="text-sm text-text-faint">
                   {Number(entry.quantity)} {entry.product?.unit ?? ''} · {REASON_LABELS[entry.reason]} ·{' '}
                   {new Date(entry.declaredAt).toLocaleDateString('fr-FR')}
                 </p>
               </div>
               <div className="shrink-0 flex items-center gap-2">
-                <p className="text-sm font-medium text-red-600 whitespace-nowrap">
+                <p className="text-sm font-medium text-danger whitespace-nowrap tabular-nums">
                   −{formatEuros(Number(entry.estimatedValue))} €
                 </p>
-                <button
-                  onClick={() => handleDelete(entry.id)}
-                  aria-label="Supprimer cette déclaration"
-                  className="min-h-[44px] px-3 rounded-lg border border-red-200 text-red-600 text-sm font-medium"
-                >
+                <button onClick={() => handleDelete(entry.id)} aria-label="Supprimer cette déclaration" className={dangerBtnClass}>
                   Supprimer
                 </button>
               </div>
             </li>
           ))}
-          {!isLoading && entries.length === 0 && <p className="text-slate-500">Aucune perte déclarée.</p>}
         </ul>
-      </div>
+      )}
     </div>
   );
 }

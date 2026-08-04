@@ -2,6 +2,8 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth, type UserRole } from '../context/AuthContext';
 import { ApiRequestError } from '../lib/apiClient';
+import Badge, { type BadgeTone } from '../components/Badge';
+import EmptyState from '../components/EmptyState';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001';
 
@@ -62,10 +64,24 @@ const WEEKDAYS = Object.keys(WEEKDAY_LABELS) as Weekday[];
 const ROLE_LABELS: Record<UserRole, string> = { GERANT: 'Gérant', CUISINE: 'Cuisine', SERVICE: 'Service' };
 
 const STATUS_LABELS: Record<ScheduleStatus, string> = { DRAFT: 'Brouillon', VALIDATED: 'Validé' };
-const STATUS_STYLES: Record<ScheduleStatus, string> = {
-  DRAFT: 'bg-amber-50 text-amber-700 border border-amber-200',
-  VALIDATED: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+
+// Même mapping que celui déjà validé dans l'artefact pour ce même
+// statut (tableau dense du point 8.1.3) : brouillon = neutre, validé = succès.
+const STATUS_TONE: Record<ScheduleStatus, BadgeTone> = {
+  DRAFT: 'neutral',
+  VALIDATED: 'success',
 };
+
+const TABLE_COLS = 'grid-cols-[1fr_80px_120px_110px]';
+
+const inputClass =
+  'w-full min-h-[44px] rounded-card-md border border-border bg-surface px-3 text-text placeholder:text-text-faint focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft';
+const primaryBtnClass =
+  'min-h-[44px] px-4 rounded-card-md bg-accent text-accent-text font-medium hover:brightness-105 disabled:opacity-50';
+const secondaryBtnClass =
+  'min-h-[44px] px-3 rounded-card-md border border-border text-sm font-medium hover:border-border-strong disabled:opacity-50';
+const dangerBtnClass =
+  'min-h-[44px] px-3 rounded-card-md border border-danger/40 text-danger text-sm font-medium hover:bg-danger-soft';
 
 function formatDateFr(dateStr: string): string {
   return new Date(`${dateStr}T00:00:00Z`).toLocaleDateString('fr-FR', { timeZone: 'UTC' });
@@ -269,425 +285,442 @@ export default function PlanningPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-8">
-      <div className="max-w-2xl mx-auto">
-        <Link to="/" className="text-sm text-slate-500 underline">
-          ← Retour à l'accueil
-        </Link>
-        <h1 className="text-2xl font-bold text-slate-900 mt-2 mb-6">Planning</h1>
+    <div className="max-w-3xl">
+      <h2 className="font-display text-2xl font-bold tracking-tight mb-6">Planning</h2>
 
-        {canManage && (
-          <div className="flex gap-2 mb-6 border-b border-slate-200">
-            {(
-              [
-                ['schedules', 'Plannings'],
-                ['availabilities', 'Disponibilités'],
-                ['requirements', 'Besoins'],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => setTab(key)}
-                className={`min-h-[44px] px-4 font-medium border-b-2 -mb-px ${
-                  tab === key ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
+      {canManage && (
+        <div className="flex gap-1 mb-6 border-b border-border">
+          {(
+            [
+              ['schedules', 'Plannings'],
+              ['availabilities', 'Disponibilités'],
+              ['requirements', 'Besoins'],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              className={`min-h-[44px] px-4 text-sm font-medium border-b-2 -mb-px transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 ${
+                tab === key ? 'border-accent text-text' : 'border-transparent text-text-muted hover:text-text'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
 
-        {error && (
-          <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{error}</p>
-        )}
-        {isLoading && <p className="text-slate-500">Chargement…</p>}
+      {error && (
+        <p className="text-sm text-danger bg-danger-soft border border-danger/30 rounded-card-md px-3 py-2 mb-4">{error}</p>
+      )}
+      {isLoading && <p className="text-text-faint">Chargement…</p>}
 
-        {!isLoading && tab === 'schedules' && (
-          <>
-            {canManage && (
-              <form onSubmit={handleGenerate} className="bg-white rounded-2xl border border-slate-200 p-6 mb-6 space-y-4">
-                <p className="text-sm text-slate-500">
-                  Génère un planning brouillon à partir des besoins de staffing et des disponibilités saisis. À vérifier
-                  et valider avant qu'il devienne définitif.
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="text-sm text-slate-600">
-                    Du
-                    <input
-                      type="date"
-                      required
-                      value={periodStart}
-                      onChange={(e) => setPeriodStart(e.target.value)}
-                      className="mt-1 w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
-                    />
-                  </label>
-                  <label className="text-sm text-slate-600">
-                    Au
-                    <input
-                      type="date"
-                      required
-                      value={periodEnd}
-                      onChange={(e) => setPeriodEnd(e.target.value)}
-                      className="mt-1 w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
-                    />
-                  </label>
-                </div>
-                {genError && (
-                  <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{genError}</p>
-                )}
-                <button
-                  type="submit"
-                  disabled={isGenerating}
-                  className="w-full min-h-[44px] rounded-lg bg-slate-900 text-white font-medium disabled:opacity-50"
-                >
-                  {isGenerating ? 'Génération…' : 'Générer un planning'}
-                </button>
-              </form>
-            )}
-
-            {canManage && genResult && (
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-6 space-y-3">
-                <p className="font-medium text-slate-900">
-                  Planning généré : {genResult.schedule.shiftAssignments.length} créneau(x) affecté(s).
-                </p>
-                {genResult.unmetRequirements.length > 0 && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                    <p className="text-sm font-medium text-red-700 mb-1">Besoins non couverts :</p>
-                    <ul className="text-sm text-red-600 list-disc list-inside">
-                      {genResult.unmetRequirements.map((u, i) => (
-                        <li key={i}>
-                          {formatDateFr(u.date)} · {ROLE_LABELS[u.role]} {u.startTime}–{u.endTime} : {u.missingCount}
-                          {' '}
-                          personne(s) manquante(s)
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {genResult.employeeIdsWithoutRestDay.length > 0 && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                    <p className="text-sm font-medium text-amber-700 mb-1">
-                      Aucun jour de repos sur la période (à vérifier avant validation) :
-                    </p>
-                    <ul className="text-sm text-amber-700 list-disc list-inside">
-                      {genResult.employeeIdsWithoutRestDay.map((id) => (
-                        <li key={id}>{employeeName(id)}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                <Link
-                  to={`/planning/schedules/${genResult.schedule.id}`}
-                  className="inline-block text-sm font-medium underline text-slate-900"
-                >
-                  Voir le planning généré →
-                </Link>
-              </div>
-            )}
-
-            <ul className="space-y-2">
-              {schedules.map((s) => (
-                <li key={s.id}>
-                  <Link
-                    to={`/planning/schedules/${s.id}`}
-                    className="block bg-white rounded-xl border border-slate-200 p-4 hover:border-slate-300"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="font-medium text-slate-900 truncate">
-                          {formatDateFr(s.periodStart)} → {formatDateFr(s.periodEnd)}
-                        </p>
-                        <p className="text-sm text-slate-500">{s.shiftAssignments.length} créneau(x)</p>
-                      </div>
-                      <span className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-lg ${STATUS_STYLES[s.status]}`}>
-                        {STATUS_LABELS[s.status]}
-                      </span>
-                    </div>
-                  </Link>
-                </li>
-              ))}
-              {schedules.length === 0 && <p className="text-slate-500">Aucun planning généré pour l'instant.</p>}
-            </ul>
-
-            {canManage && (
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 mt-6 space-y-4">
-                <div>
-                  <p className="font-medium text-slate-900">Récapitulatif d'heures pour le comptable</p>
-                  <p className="text-sm text-slate-500">
-                    Heures normales, supplémentaires, dimanches et jours fériés, calculées à partir des plannings
-                    validés sur la période. Sans dates, le mois en cours est utilisé.
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="text-sm text-slate-600">
-                    Du
-                    <input
-                      type="date"
-                      value={exportPeriodStart}
-                      onChange={(e) => setExportPeriodStart(e.target.value)}
-                      className="mt-1 w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
-                    />
-                  </label>
-                  <label className="text-sm text-slate-600">
-                    Au
-                    <input
-                      type="date"
-                      value={exportPeriodEnd}
-                      onChange={(e) => setExportPeriodEnd(e.target.value)}
-                      className="mt-1 w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
-                    />
-                  </label>
-                </div>
-                {exportError && (
-                  <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                    {exportError}
-                  </p>
-                )}
-                <button
-                  onClick={handleExportHours}
-                  disabled={isExporting}
-                  className="w-full min-h-[44px] rounded-lg border border-slate-300 font-medium disabled:opacity-50"
-                >
-                  {isExporting ? 'Génération…' : 'Télécharger le récapitulatif (CSV)'}
-                </button>
-              </div>
-            )}
-          </>
-        )}
-
-        {!isLoading && tab === 'availabilities' && (
-          <>
-            <div className="flex justify-end mb-4">
-              <button
-                onClick={() => setShowAvailForm((v) => !v)}
-                className="min-h-[44px] px-4 rounded-lg bg-slate-900 text-white font-medium"
-              >
-                {showAvailForm ? 'Annuler' : '+ Ajouter'}
-              </button>
-            </div>
-
-            {showAvailForm && (
-              <form
-                onSubmit={handleCreateAvailability}
-                className="bg-white rounded-2xl border border-slate-200 p-6 mb-6 space-y-4"
-              >
-                <select
-                  required
-                  value={availUserId}
-                  onChange={(e) => setAvailUserId(e.target.value)}
-                  className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
-                >
-                  <option value="">Choisir un employé…</option>
-                  {employees.map((emp) => (
-                    <option key={emp.id} value={emp.id}>
-                      {emp.firstName} {emp.lastName} ({ROLE_LABELS[emp.role]})
-                    </option>
-                  ))}
-                </select>
-
-                <div className="flex gap-4 text-sm">
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      checked={availMode === 'weekday'}
-                      onChange={() => setAvailMode('weekday')}
-                    />
-                    Récurrente (jour de semaine)
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input type="radio" checked={availMode === 'date'} onChange={() => setAvailMode('date')} />
-                    Ponctuelle (date précise)
-                  </label>
-                </div>
-
-                {availMode === 'weekday' ? (
-                  <select
-                    value={availWeekday}
-                    onChange={(e) => setAvailWeekday(e.target.value as Weekday)}
-                    className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
-                  >
-                    {WEEKDAYS.map((w) => (
-                      <option key={w} value={w}>
-                        {WEEKDAY_LABELS[w]}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
+      {!isLoading && tab === 'schedules' && (
+        <>
+          {canManage && (
+            <form onSubmit={handleGenerate} className="bg-surface border border-border rounded-card-lg shadow-card p-6 mb-6 space-y-4">
+              <p className="text-sm text-text-muted">
+                Génère un planning brouillon à partir des besoins de staffing et des disponibilités saisis. À vérifier
+                et valider avant qu'il devienne définitif.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="text-sm text-text-muted">
+                  Du
                   <input
                     type="date"
                     required
-                    value={availDate}
-                    onChange={(e) => setAvailDate(e.target.value)}
-                    className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
+                    value={periodStart}
+                    onChange={(e) => setPeriodStart(e.target.value)}
+                    className={`mt-1 ${inputClass}`}
                   />
-                )}
+                </label>
+                <label className="text-sm text-text-muted">
+                  Au
+                  <input
+                    type="date"
+                    required
+                    value={periodEnd}
+                    onChange={(e) => setPeriodEnd(e.target.value)}
+                    className={`mt-1 ${inputClass}`}
+                  />
+                </label>
+              </div>
+              {genError && (
+                <p className="text-sm text-danger bg-danger-soft border border-danger/30 rounded-card-md px-3 py-2">{genError}</p>
+              )}
+              <button type="submit" disabled={isGenerating} className={`w-full ${primaryBtnClass}`}>
+                {isGenerating ? 'Génération…' : 'Générer un planning'}
+              </button>
+            </form>
+          )}
 
-                <input
-                  placeholder="Motif (optionnel)"
-                  value={availReason}
-                  onChange={(e) => setAvailReason(e.target.value)}
-                  className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
-                />
-
-                {availError && (
-                  <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                    {availError}
+          {canManage && genResult && (
+            <div className="bg-surface border border-border rounded-card-lg shadow-card p-6 mb-6 space-y-3">
+              <p className="font-medium">
+                Planning généré : {genResult.schedule.shiftAssignments.length} créneau(x) affecté(s).
+              </p>
+              {genResult.unmetRequirements.length > 0 && (
+                <div className="bg-danger-soft border border-danger/30 rounded-card-md px-3 py-2">
+                  <p className="text-sm font-medium text-danger mb-1">Besoins non couverts :</p>
+                  <ul className="text-sm text-danger list-disc list-inside">
+                    {genResult.unmetRequirements.map((u, i) => (
+                      <li key={i}>
+                        {formatDateFr(u.date)} · {ROLE_LABELS[u.role]} {u.startTime}–{u.endTime} : {u.missingCount}
+                        {' '}
+                        personne(s) manquante(s)
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {genResult.employeeIdsWithoutRestDay.length > 0 && (
+                <div className="bg-warn-soft border border-warn/30 rounded-card-md px-3 py-2">
+                  <p className="text-sm font-medium text-warn mb-1">
+                    Aucun jour de repos sur la période (à vérifier avant validation) :
                   </p>
-                )}
+                  <ul className="text-sm text-warn list-disc list-inside">
+                    {genResult.employeeIdsWithoutRestDay.map((id) => (
+                      <li key={id}>{employeeName(id)}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <Link
+                to={`/planning/schedules/${genResult.schedule.id}`}
+                className="inline-block text-sm text-accent hover:underline"
+              >
+                Voir le planning généré →
+              </Link>
+            </div>
+          )}
 
-                <button
-                  type="submit"
-                  disabled={isCreatingAvail}
-                  className="w-full min-h-[44px] rounded-lg bg-slate-900 text-white font-medium disabled:opacity-50"
+          {schedules.length === 0 && (
+            <div className="bg-surface border border-border rounded-card-lg shadow-card">
+              <EmptyState
+                title="Aucun planning généré"
+                description="Les plannings générés pour l'équipe apparaîtront ici."
+              />
+            </div>
+          )}
+
+          {schedules.length > 0 && (
+            <div className="bg-surface border border-border rounded-card-lg shadow-card overflow-hidden">
+              <div className={`grid ${TABLE_COLS} gap-3 px-5 pb-2.5 pt-4 text-xs font-semibold uppercase tracking-wide text-text-faint`}>
+                <span>Période</span>
+                <span className="text-right">Créneaux</span>
+                <span>Généré</span>
+                <span>Statut</span>
+              </div>
+              {schedules.map((s) => (
+                <Link
+                  key={s.id}
+                  to={`/planning/schedules/${s.id}`}
+                  className={`grid ${TABLE_COLS} gap-3 items-center px-5 py-3.5 border-t border-border hover:bg-surface-hover transition-colors`}
                 >
-                  {isCreatingAvail ? 'Création…' : 'Créer cette règle'}
-                </button>
-              </form>
-            )}
+                  <span className="font-medium truncate">
+                    {formatDateFr(s.periodStart)} → {formatDateFr(s.periodEnd)}
+                  </span>
+                  <span className="text-sm text-text tabular-nums text-right">{s.shiftAssignments.length}</span>
+                  <span className="text-sm text-text-muted tabular-nums">
+                    {new Date(s.generatedAt).toLocaleDateString('fr-FR')}
+                  </span>
+                  <span>
+                    <Badge tone={STATUS_TONE[s.status]}>{STATUS_LABELS[s.status]}</Badge>
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
 
+          {canManage && (
+            <div className="bg-surface border border-border rounded-card-lg shadow-card p-6 mt-6 space-y-4">
+              <div>
+                <p className="font-medium">Récapitulatif d'heures pour le comptable</p>
+                <p className="text-sm text-text-muted">
+                  Heures normales, supplémentaires, dimanches et jours fériés, calculées à partir des plannings
+                  validés sur la période. Sans dates, le mois en cours est utilisé.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="text-sm text-text-muted">
+                  Du
+                  <input
+                    type="date"
+                    value={exportPeriodStart}
+                    onChange={(e) => setExportPeriodStart(e.target.value)}
+                    className={`mt-1 ${inputClass}`}
+                  />
+                </label>
+                <label className="text-sm text-text-muted">
+                  Au
+                  <input
+                    type="date"
+                    value={exportPeriodEnd}
+                    onChange={(e) => setExportPeriodEnd(e.target.value)}
+                    className={`mt-1 ${inputClass}`}
+                  />
+                </label>
+              </div>
+              {exportError && (
+                <p className="text-sm text-danger bg-danger-soft border border-danger/30 rounded-card-md px-3 py-2">
+                  {exportError}
+                </p>
+              )}
+              <button onClick={handleExportHours} disabled={isExporting} className={`w-full ${secondaryBtnClass}`}>
+                {isExporting ? 'Génération…' : 'Télécharger le récapitulatif (CSV)'}
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {!isLoading && tab === 'availabilities' && (
+        <>
+          <div className="flex justify-end mb-4">
+            <button onClick={() => setShowAvailForm((v) => !v)} className={primaryBtnClass}>
+              {showAvailForm ? 'Annuler' : '+ Ajouter'}
+            </button>
+          </div>
+
+          {showAvailForm && (
+            <form
+              onSubmit={handleCreateAvailability}
+              className="bg-surface border border-border rounded-card-lg shadow-card p-6 mb-6 space-y-4"
+            >
+              <select
+                required
+                value={availUserId}
+                onChange={(e) => setAvailUserId(e.target.value)}
+                className={inputClass}
+              >
+                <option value="">Choisir un employé…</option>
+                {employees.map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.firstName} {emp.lastName} ({ROLE_LABELS[emp.role]})
+                  </option>
+                ))}
+              </select>
+
+              <div className="flex gap-4 text-sm text-text-muted">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    checked={availMode === 'weekday'}
+                    onChange={() => setAvailMode('weekday')}
+                    className="accent-accent"
+                  />
+                  Récurrente (jour de semaine)
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    checked={availMode === 'date'}
+                    onChange={() => setAvailMode('date')}
+                    className="accent-accent"
+                  />
+                  Ponctuelle (date précise)
+                </label>
+              </div>
+
+              {availMode === 'weekday' ? (
+                <select
+                  value={availWeekday}
+                  onChange={(e) => setAvailWeekday(e.target.value as Weekday)}
+                  className={inputClass}
+                >
+                  {WEEKDAYS.map((w) => (
+                    <option key={w} value={w}>
+                      {WEEKDAY_LABELS[w]}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="date"
+                  required
+                  value={availDate}
+                  onChange={(e) => setAvailDate(e.target.value)}
+                  className={inputClass}
+                />
+              )}
+
+              <input
+                placeholder="Motif (optionnel)"
+                value={availReason}
+                onChange={(e) => setAvailReason(e.target.value)}
+                className={inputClass}
+              />
+
+              {availError && (
+                <p className="text-sm text-danger bg-danger-soft border border-danger/30 rounded-card-md px-3 py-2">
+                  {availError}
+                </p>
+              )}
+
+              <button type="submit" disabled={isCreatingAvail} className={`w-full ${primaryBtnClass}`}>
+                {isCreatingAvail ? 'Création…' : 'Créer cette règle'}
+              </button>
+            </form>
+          )}
+
+          {availabilities.length === 0 && (
+            <div className="bg-surface border border-border rounded-card-lg shadow-card">
+              <EmptyState
+                title="Aucune règle de disponibilité"
+                description="Ajoutez une indisponibilité récurrente ou ponctuelle pour un employé."
+                action={
+                  <button onClick={() => setShowAvailForm(true)} className={primaryBtnClass}>
+                    + Ajouter
+                  </button>
+                }
+              />
+            </div>
+          )}
+
+          {availabilities.length > 0 && (
             <ul className="space-y-2">
               {availabilities.map((a) => (
                 <li
                   key={a.id}
-                  className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between gap-3"
+                  className="bg-surface border border-border rounded-card-lg shadow-card p-4 flex items-center justify-between gap-3"
                 >
                   <div className="min-w-0">
-                    <p className="font-medium text-slate-900 truncate">
+                    <p className="font-medium truncate">
                       {a.user.firstName} {a.user.lastName}
                     </p>
-                    <p className="text-sm text-slate-500 truncate">
+                    <p className="text-sm text-text-faint truncate">
                       Indisponible {a.weekday ? `tous les ${WEEKDAY_LABELS[a.weekday].toLowerCase()}s` : `le ${formatDateFr(a.specificDate!)}`}
                       {a.reason ? ` · ${a.reason}` : ''}
                     </p>
                   </div>
-                  <button
-                    onClick={() => handleDeleteAvailability(a.id)}
-                    className="shrink-0 min-h-[44px] px-3 rounded-lg border border-slate-300 text-sm font-medium"
-                  >
+                  <button onClick={() => handleDeleteAvailability(a.id)} className={`shrink-0 ${dangerBtnClass}`}>
                     Supprimer
                   </button>
                 </li>
               ))}
-              {availabilities.length === 0 && <p className="text-slate-500">Aucune règle de disponibilité.</p>}
             </ul>
-          </>
-        )}
+          )}
+        </>
+      )}
 
-        {!isLoading && tab === 'requirements' && (
-          <>
-            <div className="flex justify-end mb-4">
-              <button
-                onClick={() => setShowReqForm((v) => !v)}
-                className="min-h-[44px] px-4 rounded-lg bg-slate-900 text-white font-medium"
-              >
-                {showReqForm ? 'Annuler' : '+ Ajouter'}
-              </button>
-            </div>
+      {!isLoading && tab === 'requirements' && (
+        <>
+          <div className="flex justify-end mb-4">
+            <button onClick={() => setShowReqForm((v) => !v)} className={primaryBtnClass}>
+              {showReqForm ? 'Annuler' : '+ Ajouter'}
+            </button>
+          </div>
 
-            {showReqForm && (
-              <form
-                onSubmit={handleCreateRequirement}
-                className="bg-white rounded-2xl border border-slate-200 p-6 mb-6 space-y-4"
-              >
-                <div className="grid grid-cols-2 gap-3">
-                  <select
-                    value={reqWeekday}
-                    onChange={(e) => setReqWeekday(e.target.value as Weekday)}
-                    className="min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
-                  >
-                    {WEEKDAYS.map((w) => (
-                      <option key={w} value={w}>
-                        {WEEKDAY_LABELS[w]}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={reqRole}
-                    onChange={(e) => setReqRole(e.target.value as UserRole)}
-                    className="min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
-                  >
-                    <option value="GERANT">Gérant</option>
-                    <option value="CUISINE">Cuisine</option>
-                    <option value="SERVICE">Service</option>
-                  </select>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="text-sm text-slate-600">
-                    Début
-                    <input
-                      type="time"
-                      required
-                      value={reqStart}
-                      onChange={(e) => setReqStart(e.target.value)}
-                      className="mt-1 w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
-                    />
-                  </label>
-                  <label className="text-sm text-slate-600">
-                    Fin
-                    <input
-                      type="time"
-                      required
-                      value={reqEnd}
-                      onChange={(e) => setReqEnd(e.target.value)}
-                      className="mt-1 w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
-                    />
-                  </label>
-                </div>
-                <label className="text-sm text-slate-600 block">
-                  Nombre de personnes requises
+          {showReqForm && (
+            <form
+              onSubmit={handleCreateRequirement}
+              className="bg-surface border border-border rounded-card-lg shadow-card p-6 mb-6 space-y-4"
+            >
+              <div className="grid grid-cols-2 gap-3">
+                <select
+                  value={reqWeekday}
+                  onChange={(e) => setReqWeekday(e.target.value as Weekday)}
+                  className={inputClass}
+                >
+                  {WEEKDAYS.map((w) => (
+                    <option key={w} value={w}>
+                      {WEEKDAY_LABELS[w]}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={reqRole}
+                  onChange={(e) => setReqRole(e.target.value as UserRole)}
+                  className={inputClass}
+                >
+                  <option value="GERANT">Gérant</option>
+                  <option value="CUISINE">Cuisine</option>
+                  <option value="SERVICE">Service</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="text-sm text-text-muted">
+                  Début
                   <input
-                    type="number"
-                    min="1"
-                    step="1"
+                    type="time"
                     required
-                    value={reqCount}
-                    onChange={(e) => setReqCount(e.target.value)}
-                    className="mt-1 w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
+                    value={reqStart}
+                    onChange={(e) => setReqStart(e.target.value)}
+                    className={`mt-1 ${inputClass}`}
                   />
                 </label>
+                <label className="text-sm text-text-muted">
+                  Fin
+                  <input
+                    type="time"
+                    required
+                    value={reqEnd}
+                    onChange={(e) => setReqEnd(e.target.value)}
+                    className={`mt-1 ${inputClass}`}
+                  />
+                </label>
+              </div>
+              <label className="text-sm text-text-muted block">
+                Nombre de personnes requises
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  required
+                  value={reqCount}
+                  onChange={(e) => setReqCount(e.target.value)}
+                  className={`mt-1 ${inputClass}`}
+                />
+              </label>
 
-                {reqError && (
-                  <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{reqError}</p>
-                )}
+              {reqError && (
+                <p className="text-sm text-danger bg-danger-soft border border-danger/30 rounded-card-md px-3 py-2">{reqError}</p>
+              )}
 
-                <button
-                  type="submit"
-                  disabled={isCreatingReq}
-                  className="w-full min-h-[44px] rounded-lg bg-slate-900 text-white font-medium disabled:opacity-50"
-                >
-                  {isCreatingReq ? 'Création…' : 'Créer ce besoin'}
-                </button>
-              </form>
-            )}
+              <button type="submit" disabled={isCreatingReq} className={`w-full ${primaryBtnClass}`}>
+                {isCreatingReq ? 'Création…' : 'Créer ce besoin'}
+              </button>
+            </form>
+          )}
 
+          {requirements.length === 0 && (
+            <div className="bg-surface border border-border rounded-card-lg shadow-card">
+              <EmptyState
+                title="Aucun besoin de staffing"
+                description="Définissez les besoins en personnel par jour et créneau pour pouvoir générer un planning."
+                action={
+                  <button onClick={() => setShowReqForm(true)} className={primaryBtnClass}>
+                    + Ajouter
+                  </button>
+                }
+              />
+            </div>
+          )}
+
+          {requirements.length > 0 && (
             <ul className="space-y-2">
               {requirements.map((r) => (
                 <li
                   key={r.id}
-                  className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between gap-3"
+                  className="bg-surface border border-border rounded-card-lg shadow-card p-4 flex items-center justify-between gap-3"
                 >
                   <div className="min-w-0">
-                    <p className="font-medium text-slate-900 truncate">
+                    <p className="font-medium truncate">
                       {WEEKDAY_LABELS[r.weekday]} · {ROLE_LABELS[r.role]}
                     </p>
-                    <p className="text-sm text-slate-500 truncate">
+                    <p className="text-sm text-text-faint truncate">
                       {r.startTime}–{r.endTime} · {r.requiredCount} personne(s)
                     </p>
                   </div>
-                  <button
-                    onClick={() => handleDeleteRequirement(r.id)}
-                    className="shrink-0 min-h-[44px] px-3 rounded-lg border border-slate-300 text-sm font-medium"
-                  >
+                  <button onClick={() => handleDeleteRequirement(r.id)} className={`shrink-0 ${dangerBtnClass}`}>
                     Supprimer
                   </button>
                 </li>
               ))}
-              {requirements.length === 0 && <p className="text-slate-500">Aucun besoin de staffing.</p>}
             </ul>
-          </>
-        )}
-      </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

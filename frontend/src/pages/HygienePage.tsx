@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ApiRequestError } from '../lib/apiClient';
+import Badge from '../components/Badge';
+import EmptyState from '../components/EmptyState';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001';
 
@@ -32,6 +34,16 @@ interface ChecklistCompletion {
   template: { id: string; name: string };
   completedBy: { id: string; firstName: string; lastName: string };
 }
+
+const TABLE_COLS = 'grid-cols-[1fr_110px_120px]';
+
+const inputClass =
+  'w-full min-h-[44px] rounded-card-md border border-border bg-surface px-3 text-text placeholder:text-text-faint focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft';
+const primaryBtnClass =
+  'min-h-[44px] px-4 rounded-card-md bg-accent text-accent-text font-medium hover:brightness-105 disabled:opacity-50';
+const secondaryBtnClass = 'min-h-[44px] px-4 rounded-card-md border border-border text-sm font-medium hover:border-border-strong';
+const dangerBtnClass =
+  'min-h-[44px] px-3 rounded-card-md border border-danger/40 text-danger text-sm font-medium hover:bg-danger-soft';
 
 // Une image protégée par JWT ne peut pas être chargée par un simple
 // <img src="..."> (pas de header Authorization possible) — on la
@@ -66,7 +78,7 @@ function ReferenceItemThumbnail({ itemId, accessToken }: { itemId: string; acces
   }, [itemId, accessToken]);
 
   if (!url) return null;
-  return <img src={url} alt="" className="w-full h-32 object-cover rounded-lg mb-2" />;
+  return <img src={url} alt="" className="w-full h-32 object-cover rounded-card-md mb-2" />;
 }
 
 export default function HygienePage() {
@@ -238,130 +250,131 @@ export default function HygienePage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-8">
-      <div className="max-w-2xl mx-auto">
-        <Link to="/" className="text-sm text-slate-500 underline">
-          ← Retour à l'accueil
-        </Link>
-        <h1 className="text-2xl font-bold text-slate-900 mt-2 mb-6">Hygiène</h1>
+    <div className="max-w-3xl">
+      <h2 className="font-display text-2xl font-bold tracking-tight mb-6">Hygiène</h2>
 
-        <div className="flex gap-2 mb-6 border-b border-slate-200">
-          {(
-            [
-              ['rappels', 'Rappels et normes'],
-              ['checklists', 'Checklists'],
-            ] as const
-          ).map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className={`min-h-[44px] px-4 font-medium border-b-2 -mb-px ${
-                tab === key ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+      <div className="flex gap-1 mb-6 border-b border-border">
+        {(
+          [
+            ['rappels', 'Rappels et normes'],
+            ['checklists', 'Checklists'],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`min-h-[44px] px-4 text-sm font-medium border-b-2 -mb-px transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2 ${
+              tab === key ? 'border-accent text-text' : 'border-transparent text-text-muted hover:text-text'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
-        {error && (
-          <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{error}</p>
-        )}
-        {isLoading && <p className="text-slate-500">Chargement…</p>}
+      {error && (
+        <p className="text-sm text-danger bg-danger-soft border border-danger/30 rounded-card-md px-3 py-2 mb-4">{error}</p>
+      )}
+      {isLoading && <p className="text-text-faint">Chargement…</p>}
 
-        {!isLoading && tab === 'rappels' && (
-          <>
-            {canManage && (
-              <div className="flex justify-end mb-4">
-                <button
-                  onClick={() => setShowItemForm((v) => !v)}
-                  className="min-h-[44px] px-4 rounded-lg bg-slate-900 text-white font-medium"
-                >
-                  {showItemForm ? 'Annuler' : '+ Ajouter'}
-                </button>
-              </div>
-            )}
+      {!isLoading && tab === 'rappels' && (
+        <>
+          {canManage && (
+            <div className="flex justify-end mb-4">
+              <button onClick={() => setShowItemForm((v) => !v)} className={primaryBtnClass}>
+                {showItemForm ? 'Annuler' : '+ Ajouter'}
+              </button>
+            </div>
+          )}
 
-            {showItemForm && (
-              <form onSubmit={handleCreateItem} className="bg-white rounded-2xl border border-slate-200 p-6 mb-6 space-y-4">
-                <input
-                  placeholder="Titre (ex: Lavage des mains)"
-                  required
-                  value={itemTitle}
-                  onChange={(e) => setItemTitle(e.target.value)}
-                  className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
-                />
-                <textarea
-                  placeholder="Contenu du rappel"
-                  required
-                  rows={4}
-                  value={itemContent}
-                  onChange={(e) => setItemContent(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
-                />
-                <input ref={itemFileRef} type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" className="w-full text-sm" />
-                {itemError && (
-                  <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{itemError}</p>
-                )}
-                <button
-                  type="submit"
-                  disabled={isSavingItem}
-                  className="w-full min-h-[44px] rounded-lg bg-slate-900 text-white font-medium disabled:opacity-50"
-                >
-                  {isSavingItem ? 'Création…' : 'Créer ce rappel'}
-                </button>
-              </form>
-            )}
+          {showItemForm && (
+            <form onSubmit={handleCreateItem} className="bg-surface border border-border rounded-card-lg shadow-card p-6 mb-6 space-y-4">
+              <input
+                placeholder="Titre (ex: Lavage des mains)"
+                required
+                value={itemTitle}
+                onChange={(e) => setItemTitle(e.target.value)}
+                className={inputClass}
+              />
+              <textarea
+                placeholder="Contenu du rappel"
+                required
+                rows={4}
+                value={itemContent}
+                onChange={(e) => setItemContent(e.target.value)}
+                className={`${inputClass} min-h-0 py-2`}
+              />
+              <input
+                ref={itemFileRef}
+                type="file"
+                accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                className="w-full text-sm text-text-muted file:mr-3 file:py-2.5 file:px-4 file:rounded-card-md file:border-0 file:bg-accent file:text-accent-text file:font-medium file:cursor-pointer hover:file:brightness-105"
+              />
+              {itemError && (
+                <p className="text-sm text-danger bg-danger-soft border border-danger/30 rounded-card-md px-3 py-2">{itemError}</p>
+              )}
+              <button type="submit" disabled={isSavingItem} className={`w-full ${primaryBtnClass}`}>
+                {isSavingItem ? 'Création…' : 'Créer ce rappel'}
+              </button>
+            </form>
+          )}
 
+          {referenceItems.length === 0 && (
+            <div className="bg-surface border border-border rounded-card-lg shadow-card">
+              <EmptyState
+                title="Aucun rappel pour l'instant"
+                description="Ajoutez un premier rappel ou une norme pour l'équipe."
+                action={
+                  canManage ? (
+                    <button onClick={() => setShowItemForm(true)} className={primaryBtnClass}>
+                      + Ajouter
+                    </button>
+                  ) : undefined
+                }
+              />
+            </div>
+          )}
+
+          {referenceItems.length > 0 && (
             <ul className="space-y-3">
               {referenceItems.map((item) =>
                 editingItemId === item.id ? (
-                  <li key={item.id} className="bg-white rounded-2xl border border-slate-200 p-4">
+                  <li key={item.id} className="bg-surface border border-border rounded-card-lg shadow-card p-4">
                     <form onSubmit={(e) => handleUpdateItem(e, item.id)} className="space-y-3">
                       <input
                         required
                         value={editItemTitle}
                         onChange={(e) => setEditItemTitle(e.target.value)}
-                        className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
+                        className={inputClass}
                       />
                       <textarea
                         required
                         rows={3}
                         value={editItemContent}
                         onChange={(e) => setEditItemContent(e.target.value)}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                        className={`${inputClass} min-h-0 py-2`}
                       />
                       <div className="flex gap-2">
-                        <button type="submit" className="flex-1 min-h-[44px] rounded-lg bg-slate-900 text-white font-medium">
+                        <button type="submit" className={`flex-1 ${primaryBtnClass}`}>
                           Enregistrer
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => setEditingItemId(null)}
-                          className="flex-1 min-h-[44px] rounded-lg border border-slate-300 font-medium"
-                        >
+                        <button type="button" onClick={() => setEditingItemId(null)} className={`flex-1 ${secondaryBtnClass}`}>
                           Annuler
                         </button>
                       </div>
                     </form>
                   </li>
                 ) : (
-                  <li key={item.id} className="bg-white rounded-2xl border border-slate-200 p-4">
+                  <li key={item.id} className="bg-surface border border-border rounded-card-lg shadow-card p-4">
                     {item.hasMedia && <ReferenceItemThumbnail itemId={item.id} accessToken={accessToken} />}
-                    <p className="font-medium text-slate-900">{item.title}</p>
-                    <p className="text-sm text-slate-600 whitespace-pre-wrap mt-1">{item.content}</p>
+                    <p className="font-medium">{item.title}</p>
+                    <p className="text-sm text-text-muted whitespace-pre-wrap mt-1">{item.content}</p>
                     {canManage && (
                       <div className="flex gap-2 mt-3">
-                        <button
-                          onClick={() => startEditItem(item)}
-                          className="min-h-[44px] px-3 rounded-lg border border-slate-300 text-sm font-medium"
-                        >
+                        <button onClick={() => startEditItem(item)} className={secondaryBtnClass}>
                           Modifier
                         </button>
-                        <button
-                          onClick={() => handleDeleteItem(item.id)}
-                          className="min-h-[44px] px-3 rounded-lg border border-slate-300 text-sm font-medium"
-                        >
+                        <button onClick={() => handleDeleteItem(item.id)} className={dangerBtnClass}>
                           Supprimer
                         </button>
                       </div>
@@ -369,151 +382,147 @@ export default function HygienePage() {
                   </li>
                 ),
               )}
-              {referenceItems.length === 0 && <p className="text-slate-500">Aucun rappel pour l'instant.</p>}
             </ul>
-          </>
-        )}
+          )}
+        </>
+      )}
 
-        {!isLoading && tab === 'checklists' && (
-          <>
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-6 space-y-4">
-              <p className="font-medium text-slate-900">Démarrer une checklist de fin de service</p>
-              <form onSubmit={handleStartCompletion} className="space-y-3">
-                <select
-                  required
-                  value={startTemplateId}
-                  onChange={(e) => setStartTemplateId(e.target.value)}
-                  className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
-                >
-                  <option value="">Choisir un modèle…</option>
-                  {templates.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="date"
-                  required
-                  value={startServiceDate}
-                  onChange={(e) => setStartServiceDate(e.target.value)}
-                  className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
-                />
-                {startError && (
-                  <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{startError}</p>
-                )}
-                <button
-                  type="submit"
-                  disabled={isStarting || templates.length === 0}
-                  className="w-full min-h-[44px] rounded-lg bg-slate-900 text-white font-medium disabled:opacity-50"
-                >
-                  {isStarting ? 'Démarrage…' : 'Démarrer'}
-                </button>
-                {templates.length === 0 && (
-                  <p className="text-sm text-slate-400">Aucun modèle de checklist — {canManage ? 'crées-en un ci-dessous.' : 'demande à ton Gérant d\'en créer un.'}</p>
-                )}
-              </form>
+      {!isLoading && tab === 'checklists' && (
+        <>
+          <div className="bg-surface border border-border rounded-card-lg shadow-card p-6 mb-6 space-y-4">
+            <p className="font-medium">Démarrer une checklist de fin de service</p>
+            <form onSubmit={handleStartCompletion} className="space-y-3">
+              <select
+                required
+                value={startTemplateId}
+                onChange={(e) => setStartTemplateId(e.target.value)}
+                className={inputClass}
+              >
+                <option value="">Choisir un modèle…</option>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="date"
+                required
+                value={startServiceDate}
+                onChange={(e) => setStartServiceDate(e.target.value)}
+                className={inputClass}
+              />
+              {startError && (
+                <p className="text-sm text-danger bg-danger-soft border border-danger/30 rounded-card-md px-3 py-2">{startError}</p>
+              )}
+              <button type="submit" disabled={isStarting || templates.length === 0} className={`w-full ${primaryBtnClass}`}>
+                {isStarting ? 'Démarrage…' : 'Démarrer'}
+              </button>
+              {templates.length === 0 && (
+                <p className="text-sm text-text-faint">
+                  Aucun modèle de checklist — {canManage ? 'crées-en un ci-dessous.' : "demande à ton Gérant d'en créer un."}
+                </p>
+              )}
+            </form>
+          </div>
+
+          <p className="font-medium mb-2">Checklists récentes</p>
+
+          {completions.length === 0 && (
+            <div className="bg-surface border border-border rounded-card-lg shadow-card mb-6">
+              <EmptyState
+                title="Aucune checklist pour l'instant"
+                description="Les checklists démarrées par l'équipe apparaîtront ici."
+              />
             </div>
+          )}
 
-            <p className="font-medium text-slate-900 mb-2">Checklists récentes</p>
-            <ul className="space-y-2 mb-6">
+          {completions.length > 0 && (
+            <div className="bg-surface border border-border rounded-card-lg shadow-card overflow-hidden mb-6">
+              <div className={`grid ${TABLE_COLS} gap-3 px-5 pb-2.5 pt-4 text-xs font-semibold uppercase tracking-wide text-text-faint`}>
+                <span>Modèle</span>
+                <span>Date</span>
+                <span>Statut</span>
+              </div>
               {completions.map((c) => (
-                <li key={c.id}>
-                  <Link
-                    to={`/hygiene/completions/${c.id}`}
-                    className="block bg-white rounded-xl border border-slate-200 p-4 hover:border-slate-300"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="font-medium text-slate-900 truncate">{c.template.name}</p>
-                        <p className="text-sm text-slate-500">
-                          {new Date(`${c.serviceDate}T00:00:00Z`).toLocaleDateString('fr-FR', { timeZone: 'UTC' })} ·{' '}
-                          {c.completedBy.firstName} {c.completedBy.lastName}
-                        </p>
-                      </div>
-                      <span
-                        className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-lg ${
-                          c.completedAt
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-amber-50 text-amber-700 border border-amber-200'
-                        }`}
-                      >
-                        {c.completedAt ? 'Complétée' : 'En cours'}
-                      </span>
-                    </div>
-                  </Link>
-                </li>
+                <Link
+                  key={c.id}
+                  to={`/hygiene/completions/${c.id}`}
+                  className={`grid ${TABLE_COLS} gap-3 items-center px-5 py-3.5 border-t border-border hover:bg-surface-hover transition-colors`}
+                >
+                  <span className="min-w-0">
+                    <span className="font-medium truncate block">{c.template.name}</span>
+                    <span className="text-xs text-text-faint truncate block mt-0.5">
+                      {c.completedBy.firstName} {c.completedBy.lastName}
+                    </span>
+                  </span>
+                  <span className="text-sm text-text-muted tabular-nums">
+                    {new Date(`${c.serviceDate}T00:00:00Z`).toLocaleDateString('fr-FR', { timeZone: 'UTC' })}
+                  </span>
+                  <span>
+                    <Badge tone={c.completedAt ? 'success' : 'info'}>{c.completedAt ? 'Complétée' : 'En cours'}</Badge>
+                  </span>
+                </Link>
               ))}
-              {completions.length === 0 && <p className="text-slate-500">Aucune checklist pour l'instant.</p>}
-            </ul>
+            </div>
+          )}
 
-            {canManage && (
-              <>
-                <div className="flex justify-end mb-4">
-                  <button
-                    onClick={() => setShowTemplateForm((v) => !v)}
-                    className="min-h-[44px] px-4 rounded-lg border border-slate-300 font-medium"
-                  >
-                    {showTemplateForm ? 'Annuler' : '+ Nouveau modèle de checklist'}
+          {canManage && (
+            <>
+              <div className="flex justify-end mb-4">
+                <button onClick={() => setShowTemplateForm((v) => !v)} className={secondaryBtnClass}>
+                  {showTemplateForm ? 'Annuler' : '+ Nouveau modèle de checklist'}
+                </button>
+              </div>
+
+              {showTemplateForm && (
+                <form onSubmit={handleCreateTemplate} className="bg-surface border border-border rounded-card-lg shadow-card p-6 mb-6 space-y-4">
+                  <input
+                    placeholder="Nom du modèle (ex: Fin de service midi)"
+                    required
+                    value={templateName}
+                    onChange={(e) => setTemplateName(e.target.value)}
+                    className={inputClass}
+                  />
+                  <textarea
+                    placeholder={'Une tâche par ligne, ex :\nNettoyer le plan de travail\nVider les poubelles'}
+                    required
+                    rows={5}
+                    value={templateItemsText}
+                    onChange={(e) => setTemplateItemsText(e.target.value)}
+                    className={`${inputClass} min-h-0 py-2`}
+                  />
+                  {templateError && (
+                    <p className="text-sm text-danger bg-danger-soft border border-danger/30 rounded-card-md px-3 py-2">{templateError}</p>
+                  )}
+                  <button type="submit" disabled={isSavingTemplate} className={`w-full ${primaryBtnClass}`}>
+                    {isSavingTemplate ? 'Création…' : 'Créer ce modèle'}
                   </button>
-                </div>
+                </form>
+              )}
 
-                {showTemplateForm && (
-                  <form onSubmit={handleCreateTemplate} className="bg-white rounded-2xl border border-slate-200 p-6 mb-6 space-y-4">
-                    <input
-                      placeholder="Nom du modèle (ex: Fin de service midi)"
-                      required
-                      value={templateName}
-                      onChange={(e) => setTemplateName(e.target.value)}
-                      className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
-                    />
-                    <textarea
-                      placeholder={'Une tâche par ligne, ex :\nNettoyer le plan de travail\nVider les poubelles'}
-                      required
-                      rows={5}
-                      value={templateItemsText}
-                      onChange={(e) => setTemplateItemsText(e.target.value)}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
-                    />
-                    {templateError && (
-                      <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{templateError}</p>
-                    )}
-                    <button
-                      type="submit"
-                      disabled={isSavingTemplate}
-                      className="w-full min-h-[44px] rounded-lg bg-slate-900 text-white font-medium disabled:opacity-50"
-                    >
-                      {isSavingTemplate ? 'Création…' : 'Créer ce modèle'}
+              <p className="font-medium mb-2">Modèles actifs</p>
+              <ul className="space-y-2">
+                {templates.map((t) => (
+                  <li
+                    key={t.id}
+                    className="bg-surface border border-border rounded-card-lg shadow-card p-4 flex items-center justify-between gap-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{t.name}</p>
+                      <p className="text-sm text-text-faint truncate">{t.items.length} tâche(s)</p>
+                    </div>
+                    <button onClick={() => handleDeactivateTemplate(t.id)} className={`shrink-0 ${dangerBtnClass}`}>
+                      Désactiver
                     </button>
-                  </form>
-                )}
-
-                <p className="font-medium text-slate-900 mb-2">Modèles actifs</p>
-                <ul className="space-y-2">
-                  {templates.map((t) => (
-                    <li
-                      key={t.id}
-                      className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between gap-3"
-                    >
-                      <div className="min-w-0">
-                        <p className="font-medium text-slate-900 truncate">{t.name}</p>
-                        <p className="text-sm text-slate-500 truncate">{t.items.length} tâche(s)</p>
-                      </div>
-                      <button
-                        onClick={() => handleDeactivateTemplate(t.id)}
-                        className="shrink-0 min-h-[44px] px-3 rounded-lg border border-slate-300 text-sm font-medium"
-                      >
-                        Désactiver
-                      </button>
-                    </li>
-                  ))}
-                  {templates.length === 0 && <p className="text-slate-500">Aucun modèle actif.</p>}
-                </ul>
-              </>
-            )}
-          </>
-        )}
-      </div>
+                  </li>
+                ))}
+                {templates.length === 0 && <p className="text-text-faint">Aucun modèle actif.</p>}
+              </ul>
+            </>
+          )}
+        </>
+      )}
     </div>
   );
 }

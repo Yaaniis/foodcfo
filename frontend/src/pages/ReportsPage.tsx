@@ -23,6 +23,13 @@ interface ReportEmail {
   text: string;
 }
 
+const inputClass =
+  'w-full min-h-[44px] rounded-card-md border border-border bg-surface px-3 text-text placeholder:text-text-faint focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft';
+const primaryBtnClass =
+  'w-full min-h-[44px] rounded-card-md bg-accent text-accent-text font-medium hover:brightness-105 disabled:opacity-50';
+const secondaryBtnClass =
+  'w-full min-h-[44px] rounded-card-md border border-border text-text font-medium hover:border-border-strong disabled:opacity-50';
+
 export default function ReportsPage() {
   const { authFetch, accessToken, logout } = useAuth();
   const navigate = useNavigate();
@@ -140,129 +147,115 @@ export default function ReportsPage() {
   }
 
   if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center text-slate-400">Chargement…</div>;
+    return <p className="text-text-faint">Chargement…</p>;
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-8">
-      <div className="max-w-2xl mx-auto">
-        <Link to="/" className="text-sm text-slate-500 underline">
-          ← Retour à l'accueil
-        </Link>
-        <h1 className="text-2xl font-bold text-slate-900 mt-2 mb-6">Rapports et exports</h1>
+    <div className="max-w-3xl">
+      <Link to="/" className="text-sm text-text-muted hover:text-accent">
+        ← Retour à l'accueil
+      </Link>
+      <h2 className="font-display text-2xl font-bold tracking-tight mt-2 mb-6">Rapports et exports</h2>
 
-        {error && (
-          <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{error}</p>
-        )}
-        {sendResult && (
-          <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 mb-4">
-            {sendResult}
-          </p>
-        )}
+      {error && (
+        <p className="text-sm text-danger bg-danger-soft border border-danger/30 rounded-card-md px-3 py-2 mb-4">{error}</p>
+      )}
+      {sendResult && (
+        <p className="text-sm text-good bg-good-soft border border-good/30 rounded-card-md px-3 py-2 mb-4">
+          {sendResult}
+        </p>
+      )}
 
-        {data && (
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-4">
-            <p className="text-sm font-medium text-slate-700 mb-3">Rapport mensuel — {data.month}</p>
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <div className="p-3 rounded-lg bg-slate-50">
-                <p className="text-xs text-slate-500">Marge moyenne</p>
-                <p className="text-lg font-bold text-slate-900">
-                  {data.averageMarginRatio !== null ? `${data.averageMarginRatio.toFixed(1)} %` : '—'}
-                </p>
-              </div>
-              <div className="p-3 rounded-lg bg-slate-50">
-                <p className="text-xs text-slate-500">Plats en alerte</p>
-                <p className="text-lg font-bold text-slate-900">{data.orangeCount + data.redCount}</p>
-              </div>
-              <div className="p-3 rounded-lg bg-slate-50">
-                <p className="text-xs text-slate-500">Gaspillage</p>
-                <p className="text-lg font-bold text-slate-900">{data.wasteTotal.toFixed(2)} €</p>
-              </div>
-              <div className="p-3 rounded-lg bg-slate-50">
-                <p className="text-xs text-slate-500">Achats fournisseurs</p>
-                <p className="text-lg font-bold text-slate-900">
-                  {data.invoiceCount} facture(s) · {data.invoiceTotal.toFixed(2)} €
-                </p>
-              </div>
+      {data && (
+        <div className="bg-surface border border-border rounded-card-lg shadow-card p-6 mb-4">
+          <p className="text-sm font-medium text-text-muted mb-3">Rapport mensuel — {data.month}</p>
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="p-3 rounded-card-md bg-surface-hover">
+              <p className="text-xs text-text-faint uppercase tracking-wide">Marge moyenne</p>
+              <p className="text-lg font-bold font-display mt-0.5">
+                {data.averageMarginRatio !== null ? `${data.averageMarginRatio.toFixed(1)} %` : '—'}
+              </p>
             </div>
-
-            {email && (
-              <details className="mb-4">
-                <summary className="text-sm text-slate-500 underline cursor-pointer">Voir le message généré</summary>
-                <pre className="text-sm text-slate-600 whitespace-pre-wrap bg-slate-50 rounded-lg p-3 mt-2">
-                  {email.text}
-                </pre>
-              </details>
-            )}
-
-            <button
-              onClick={handleSend}
-              disabled={isSending}
-              className="w-full min-h-[44px] rounded-lg bg-slate-900 text-white font-medium disabled:opacity-50"
-            >
-              {isSending ? 'Envoi…' : 'Envoyer le rapport maintenant'}
-            </button>
-            <p className="text-xs text-slate-400 mt-2">
-              Un rapport est aussi envoyé automatiquement le 1er de chaque mois à tous les comptes Gérant.
-            </p>
+            <div className="p-3 rounded-card-md bg-warn-soft">
+              <p className="text-xs text-warn uppercase tracking-wide">Plats en alerte</p>
+              <p className="text-lg font-bold font-display text-warn mt-0.5">{data.orangeCount + data.redCount}</p>
+            </div>
+            <div className="p-3 rounded-card-md bg-surface-hover">
+              <p className="text-xs text-text-faint uppercase tracking-wide">Gaspillage</p>
+              <p className="text-lg font-bold font-display mt-0.5">{data.wasteTotal.toFixed(2)} €</p>
+            </div>
+            <div className="p-3 rounded-card-md bg-surface-hover">
+              <p className="text-xs text-text-faint uppercase tracking-wide">Achats fournisseurs</p>
+              <p className="text-lg font-bold font-display mt-0.5">
+                {data.invoiceCount} facture(s) · {data.invoiceTotal.toFixed(2)} €
+              </p>
+            </div>
           </div>
-        )}
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <p className="text-sm font-medium text-slate-700 mb-3">Export comptable</p>
-          <p className="text-sm text-slate-500 mb-4">
-            Toutes les lignes de factures validées du mois en cours, au format CSV (compatible Excel).
-          </p>
-          <button
-            onClick={handleExport}
-            disabled={isExporting}
-            className="w-full min-h-[44px] rounded-lg border border-slate-300 text-slate-700 font-medium disabled:opacity-50"
-          >
-            {isExporting ? 'Génération…' : 'Télécharger le CSV des factures'}
-          </button>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 mt-4">
-          <p className="text-sm font-medium text-slate-700 mb-3">Confidentialité et données</p>
-          <p className="text-sm text-slate-500 mb-4">
-            Conformément au RGPD, tu peux exporter l'intégralité des données de ton restaurant, ou demander leur
-            suppression complète.
-          </p>
-          <button
-            onClick={handleExportAllData}
-            disabled={isExportingData}
-            className="w-full min-h-[44px] rounded-lg border border-slate-300 text-slate-700 font-medium disabled:opacity-50"
-          >
-            {isExportingData ? 'Génération…' : 'Exporter toutes mes données (JSON)'}
-          </button>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-red-200 p-6 mt-4">
-          <p className="text-sm font-medium text-red-700 mb-3">Zone de suppression</p>
-          <p className="text-sm text-slate-500 mb-4">
-            Supprime définitivement le restaurant et toutes ses données (fournisseurs, produits, plats, factures,
-            commandes, gaspillage, comptes de l'équipe). <strong>Action irréversible.</strong> Pour confirmer, retape
-            le nom exact du restaurant{data ? ` (« ${data.restaurantName} »)` : ''} ci-dessous.
-          </p>
-          <input
-            value={confirmName}
-            onChange={(e) => setConfirmName(e.target.value)}
-            placeholder="Nom exact du restaurant"
-            className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3 mb-3"
-          />
-          {deleteError && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
-              {deleteError}
-            </p>
+          {email && (
+            <details className="mb-4">
+              <summary className="text-sm text-text-muted hover:text-accent cursor-pointer">Voir le message généré</summary>
+              <pre className="text-sm text-text-muted whitespace-pre-wrap bg-surface-hover rounded-card-md p-3 mt-2">
+                {email.text}
+              </pre>
+            </details>
           )}
-          <button
-            onClick={handleDeleteRestaurant}
-            disabled={isDeleting || !data || confirmName !== data.restaurantName}
-            className="w-full min-h-[44px] rounded-lg bg-red-600 text-white font-medium disabled:opacity-40"
-          >
-            {isDeleting ? 'Suppression…' : 'Supprimer définitivement le restaurant'}
+
+          <button onClick={handleSend} disabled={isSending} className={primaryBtnClass}>
+            {isSending ? 'Envoi…' : 'Envoyer le rapport maintenant'}
           </button>
+          <p className="text-xs text-text-faint mt-2">
+            Un rapport est aussi envoyé automatiquement le 1er de chaque mois à tous les comptes Gérant.
+          </p>
         </div>
+      )}
+
+      <div className="bg-surface border border-border rounded-card-lg shadow-card p-6">
+        <p className="text-sm font-medium text-text-muted mb-3">Export comptable</p>
+        <p className="text-sm text-text-muted mb-4">
+          Toutes les lignes de factures validées du mois en cours, au format CSV (compatible Excel).
+        </p>
+        <button onClick={handleExport} disabled={isExporting} className={secondaryBtnClass}>
+          {isExporting ? 'Génération…' : 'Télécharger le CSV des factures'}
+        </button>
+      </div>
+
+      <div className="bg-surface border border-border rounded-card-lg shadow-card p-6 mt-4">
+        <p className="text-sm font-medium text-text-muted mb-3">Confidentialité et données</p>
+        <p className="text-sm text-text-muted mb-4">
+          Conformément au RGPD, tu peux exporter l'intégralité des données de ton restaurant, ou demander leur
+          suppression complète.
+        </p>
+        <button onClick={handleExportAllData} disabled={isExportingData} className={secondaryBtnClass}>
+          {isExportingData ? 'Génération…' : 'Exporter toutes mes données (JSON)'}
+        </button>
+      </div>
+
+      <div className="bg-surface border border-danger/30 rounded-card-lg shadow-card p-6 mt-4">
+        <p className="text-sm font-medium text-danger mb-3">Zone de suppression</p>
+        <p className="text-sm text-text-muted mb-4">
+          Supprime définitivement le restaurant et toutes ses données (fournisseurs, produits, plats, factures,
+          commandes, gaspillage, comptes de l'équipe). <strong className="text-text">Action irréversible.</strong> Pour
+          confirmer, retape le nom exact du restaurant{data ? ` (« ${data.restaurantName} »)` : ''} ci-dessous.
+        </p>
+        <input
+          value={confirmName}
+          onChange={(e) => setConfirmName(e.target.value)}
+          placeholder="Nom exact du restaurant"
+          className={`${inputClass} mb-3`}
+        />
+        {deleteError && (
+          <p className="text-sm text-danger bg-danger-soft border border-danger/30 rounded-card-md px-3 py-2 mb-3">
+            {deleteError}
+          </p>
+        )}
+        <button
+          onClick={handleDeleteRestaurant}
+          disabled={isDeleting || !data || confirmName !== data.restaurantName}
+          className="w-full min-h-[44px] rounded-card-md bg-danger text-text font-medium disabled:opacity-40 hover:brightness-110"
+        >
+          {isDeleting ? 'Suppression…' : 'Supprimer définitivement le restaurant'}
+        </button>
       </div>
     </div>
   );

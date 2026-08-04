@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth, type UserRole } from '../context/AuthContext';
 import { ApiRequestError } from '../lib/apiClient';
 
@@ -16,6 +17,12 @@ const ROLE_LABELS: Record<UserRole, string> = {
   CUISINE: 'Cuisine',
   SERVICE: 'Service',
 };
+
+const inputClass =
+  'w-full min-h-[44px] rounded-card-md border border-border bg-surface px-3 text-text placeholder:text-text-faint focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft';
+const primaryBtnClass =
+  'min-h-[44px] px-4 rounded-card-md bg-accent text-accent-text font-medium hover:brightness-105 disabled:opacity-50';
+const secondaryBtnClass = 'min-h-[44px] px-3 rounded-card-md border border-border text-sm font-medium hover:border-border-strong';
 
 export default function TeamPage() {
   const { authFetch } = useAuth();
@@ -118,167 +125,145 @@ export default function TeamPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-8">
-      <div className="max-w-2xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-slate-900">Équipe</h1>
-          <button
-            onClick={() => setShowForm((v) => !v)}
-            className="min-h-[44px] px-4 rounded-lg bg-slate-900 text-white font-medium"
-          >
-            {showForm ? 'Annuler' : '+ Ajouter'}
-          </button>
-        </div>
-
-        {showForm && (
-          <form onSubmit={handleCreate} className="bg-white rounded-2xl border border-slate-200 p-6 mb-6 space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <input
-                placeholder="Prénom"
-                required
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                className="min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
-              />
-              <input
-                placeholder="Nom"
-                required
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                className="min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
-              />
-            </div>
-            <input
-              type="email"
-              placeholder="Email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
-            />
-            <input
-              type="password"
-              placeholder="Mot de passe (8 caractères min.)"
-              required
-              minLength={8}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
-            />
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value as UserRole)}
-              className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
-            >
-              <option value="GERANT">Gérant</option>
-              <option value="CUISINE">Cuisine</option>
-              <option value="SERVICE">Service</option>
-            </select>
-
-            {formError && (
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{formError}</p>
-            )}
-
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full min-h-[44px] rounded-lg bg-slate-900 text-white font-medium disabled:opacity-50"
-            >
-              {isSubmitting ? 'Création…' : 'Créer cet utilisateur'}
-            </button>
-          </form>
-        )}
-
-        {isLoading && <p className="text-slate-500">Chargement…</p>}
-        {loadError && <p className="text-red-600">{loadError}</p>}
-
-        <ul className="space-y-2">
-          {members.map((m) =>
-            editingId === m.id ? (
-              <li key={m.id}>
-                <form
-                  onSubmit={(e) => handleUpdate(e, m.id)}
-                  className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3"
-                >
-                  <div className="grid grid-cols-2 gap-3">
-                    <input
-                      required
-                      value={editFirstName}
-                      onChange={(e) => setEditFirstName(e.target.value)}
-                      className="min-h-[44px] rounded-lg border border-slate-300 px-3"
-                    />
-                    <input
-                      required
-                      value={editLastName}
-                      onChange={(e) => setEditLastName(e.target.value)}
-                      className="min-h-[44px] rounded-lg border border-slate-300 px-3"
-                    />
-                  </div>
-                  <select
-                    value={editRole}
-                    onChange={(e) => setEditRole(e.target.value as UserRole)}
-                    className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
-                  >
-                    <option value="GERANT">Gérant</option>
-                    <option value="CUISINE">Cuisine</option>
-                    <option value="SERVICE">Service</option>
-                  </select>
-                  {editError && (
-                    <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                      {editError}
-                    </p>
-                  )}
-                  <div className="flex gap-2">
-                    <button
-                      type="submit"
-                      className="flex-1 min-h-[44px] rounded-lg bg-slate-900 text-white font-medium"
-                    >
-                      Enregistrer
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditingId(null)}
-                      className="flex-1 min-h-[44px] rounded-lg border border-slate-300 font-medium"
-                    >
-                      Annuler
-                    </button>
-                  </div>
-                </form>
-              </li>
-            ) : (
-              <li
-                key={m.id}
-                className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between gap-3"
-              >
-                <div className="min-w-0">
-                  <p className="font-medium text-slate-900 truncate">
-                    {m.firstName} {m.lastName}
-                  </p>
-                  <p className="text-sm text-slate-500 truncate">
-                    {m.email} · {ROLE_LABELS[m.role]}
-                  </p>
-                </div>
-                <div className="shrink-0 flex gap-2">
-                  <button
-                    onClick={() => startEdit(m)}
-                    className="min-h-[44px] px-3 rounded-lg border border-slate-300 text-sm font-medium"
-                  >
-                    Modifier
-                  </button>
-                  <button
-                    onClick={() => toggleActive(m)}
-                    className={`min-h-[44px] px-3 rounded-lg text-sm font-medium ${
-                      m.isActive ? 'bg-slate-100 text-slate-700' : 'bg-red-50 text-red-600'
-                    }`}
-                  >
-                    {m.isActive ? 'Actif' : 'Désactivé'}
-                  </button>
-                </div>
-              </li>
-            ),
-          )}
-        </ul>
+    <div className="max-w-3xl">
+      <Link to="/" className="text-sm text-text-muted hover:text-accent">
+        ← Retour à l'accueil
+      </Link>
+      <div className="flex items-center justify-between mt-2 mb-6">
+        <h2 className="font-display text-2xl font-bold tracking-tight">Équipe</h2>
+        <button onClick={() => setShowForm((v) => !v)} className={primaryBtnClass}>
+          {showForm ? 'Annuler' : '+ Ajouter'}
+        </button>
       </div>
+
+      {showForm && (
+        <form onSubmit={handleCreate} className="bg-surface border border-border rounded-card-lg shadow-card p-6 mb-6 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <input
+              placeholder="Prénom"
+              required
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              className={inputClass}
+            />
+            <input
+              placeholder="Nom"
+              required
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              className={inputClass}
+            />
+          </div>
+          <input
+            type="email"
+            placeholder="Email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className={inputClass}
+          />
+          <input
+            type="password"
+            placeholder="Mot de passe (8 caractères min.)"
+            required
+            minLength={8}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className={inputClass}
+          />
+          <select value={role} onChange={(e) => setRole(e.target.value as UserRole)} className={inputClass}>
+            <option value="GERANT">Gérant</option>
+            <option value="CUISINE">Cuisine</option>
+            <option value="SERVICE">Service</option>
+          </select>
+
+          {formError && (
+            <p className="text-sm text-danger bg-danger-soft border border-danger/30 rounded-card-md px-3 py-2">{formError}</p>
+          )}
+
+          <button type="submit" disabled={isSubmitting} className={`w-full ${primaryBtnClass}`}>
+            {isSubmitting ? 'Création…' : 'Créer cet utilisateur'}
+          </button>
+        </form>
+      )}
+
+      {isLoading && <p className="text-text-faint">Chargement…</p>}
+      {loadError && (
+        <p className="text-sm text-danger bg-danger-soft border border-danger/30 rounded-card-md px-3 py-2 mb-4">{loadError}</p>
+      )}
+
+      <ul className="space-y-2">
+        {members.map((m) =>
+          editingId === m.id ? (
+            <li key={m.id}>
+              <form
+                onSubmit={(e) => handleUpdate(e, m.id)}
+                className="bg-surface border border-border rounded-card-lg shadow-card p-4 space-y-3"
+              >
+                <div className="grid grid-cols-2 gap-3">
+                  <input
+                    required
+                    value={editFirstName}
+                    onChange={(e) => setEditFirstName(e.target.value)}
+                    className={inputClass}
+                  />
+                  <input
+                    required
+                    value={editLastName}
+                    onChange={(e) => setEditLastName(e.target.value)}
+                    className={inputClass}
+                  />
+                </div>
+                <select value={editRole} onChange={(e) => setEditRole(e.target.value as UserRole)} className={inputClass}>
+                  <option value="GERANT">Gérant</option>
+                  <option value="CUISINE">Cuisine</option>
+                  <option value="SERVICE">Service</option>
+                </select>
+                {editError && (
+                  <p className="text-sm text-danger bg-danger-soft border border-danger/30 rounded-card-md px-3 py-2">
+                    {editError}
+                  </p>
+                )}
+                <div className="flex gap-2">
+                  <button type="submit" className={`flex-1 ${primaryBtnClass}`}>
+                    Enregistrer
+                  </button>
+                  <button type="button" onClick={() => setEditingId(null)} className={`flex-1 ${secondaryBtnClass}`}>
+                    Annuler
+                  </button>
+                </div>
+              </form>
+            </li>
+          ) : (
+            <li
+              key={m.id}
+              className="bg-surface border border-border rounded-card-lg shadow-card p-4 flex items-center justify-between gap-3"
+            >
+              <div className="min-w-0">
+                <p className="font-medium truncate">
+                  {m.firstName} {m.lastName}
+                </p>
+                <p className="text-sm text-text-faint truncate">
+                  {m.email} · {ROLE_LABELS[m.role]}
+                </p>
+              </div>
+              <div className="shrink-0 flex gap-2">
+                <button onClick={() => startEdit(m)} className={secondaryBtnClass}>
+                  Modifier
+                </button>
+                <button
+                  onClick={() => toggleActive(m)}
+                  className={`min-h-[44px] px-3 rounded-card-md text-sm font-medium ${
+                    m.isActive ? 'bg-surface-hover text-text-muted' : 'bg-danger-soft text-danger'
+                  }`}
+                >
+                  {m.isActive ? 'Actif' : 'Désactivé'}
+                </button>
+              </div>
+            </li>
+          ),
+        )}
+      </ul>
     </div>
   );
 }

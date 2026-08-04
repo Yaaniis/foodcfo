@@ -16,35 +16,30 @@ const ORGANISMS: { key: Organism; short: string; full: string; description: stri
 
 export default function ControlPage() {
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-8">
-      <div className="max-w-2xl mx-auto">
-        <Link to="/" className="text-sm text-slate-500 underline">
-          ← Retour à l'accueil
-        </Link>
-        <h1 className="text-2xl font-bold text-slate-900 mt-2 mb-2">Contrôle</h1>
-        <p className="text-sm text-slate-500 mb-6">
-          En cas de contrôle, dépose les justificatifs demandés par l'organisme concerné. FoodCFO complète
-          automatiquement le dossier avec les données déjà en place (heures de travail pour l'URSSAF/l'Inspection
-          du travail, historique des checklists de nettoyage pour la DDPP).
-        </p>
+    <div className="max-w-3xl">
+      <h2 className="font-display text-2xl font-bold tracking-tight mb-2">Contrôle</h2>
+      <p className="text-sm text-text-muted mb-6">
+        En cas de contrôle, dépose les justificatifs demandés par l'organisme concerné. FoodCFO complète
+        automatiquement le dossier avec les données déjà en place (heures de travail pour l'URSSAF/l'Inspection
+        du travail, historique des checklists de nettoyage pour la DDPP).
+      </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {ORGANISMS.map((o) => (
-            <Link
-              key={o.key}
-              to={`/control/${o.key}`}
-              className="bg-white rounded-2xl border border-slate-200 p-5 hover:border-slate-300 flex items-start gap-3"
-            >
-              <span className="shrink-0 w-12 h-12 rounded-xl bg-slate-900 text-white flex items-center justify-center text-xs font-bold">
-                {o.short}
-              </span>
-              <div className="min-w-0">
-                <p className="font-medium text-slate-900">{o.full}</p>
-                <p className="text-sm text-slate-500">{o.description}</p>
-              </div>
-            </Link>
-          ))}
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {ORGANISMS.map((o) => (
+          <Link
+            key={o.key}
+            to={`/control/${o.key}`}
+            className="bg-surface border border-border rounded-card-lg shadow-card p-5 hover:border-border-strong transition-colors flex items-start gap-3"
+          >
+            <span className="shrink-0 w-12 h-12 rounded-card-md bg-text text-bg flex items-center justify-center text-xs font-bold">
+              {o.short}
+            </span>
+            <div className="min-w-0">
+              <p className="font-medium">{o.full}</p>
+              <p className="text-sm text-text-muted">{o.description}</p>
+            </div>
+          </Link>
+        ))}
       </div>
     </div>
   );
