@@ -293,6 +293,12 @@ export default function DashboardPage() {
             Commandes →
           </Link>
           <Link
+            to="/pos/sales"
+            className="min-h-[40px] px-4 inline-flex items-center rounded-card-md border border-border bg-surface text-sm font-medium hover:border-border-strong hover:text-accent"
+          >
+            Ventes à rapprocher →
+          </Link>
+          <Link
             to="/alerts"
             className="min-h-[40px] px-4 inline-flex items-center gap-2 rounded-card-md border border-border bg-surface text-sm font-medium hover:border-border-strong hover:text-accent"
           >

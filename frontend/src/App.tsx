@@ -12,6 +12,7 @@ import DashboardPage from './pages/DashboardPage';
 import AccountPage from './pages/AccountPage';
 import RestaurantSettingsPage from './pages/RestaurantSettingsPage';
 import PosPage from './pages/PosPage';
+import PosSalesPage from './pages/PosSalesPage';
 import TeamPage from './pages/TeamPage';
 import MenuPage from './pages/MenuPage';
 import RecipePage from './pages/RecipePage';
@@ -97,6 +98,7 @@ function App() {
                 <Route path="/orders/:orderId" element={<OrderDetailPage />} />
                 <Route path="/waste" element={<WastePage />} />
                 <Route path="/alerts" element={<AlertsPage />} />
+                <Route path="/pos/sales" element={<PosSalesPage />} />
               </Route>
             </Route>
           </Route>
