@@ -137,45 +137,98 @@ export async function updateRestaurant(req: Request, res: Response) {
 export async function exportRestaurantData(req: Request, res: Response) {
   const restaurantId = req.user!.restaurantId;
 
-  const [restaurant, users, suppliers, products, menuItems, invoices, orders, wasteEntries, marginAlerts] =
-    await Promise.all([
-      prisma.restaurant.findUniqueOrThrow({ where: { id: restaurantId } }),
-      prisma.user.findMany({
-        where: { restaurantId },
-        select: { id: true, email: true, firstName: true, lastName: true, role: true, isActive: true, createdAt: true },
-      }),
-      prisma.supplier.findMany({ where: { restaurantId } }),
-      prisma.product.findMany({ where: { restaurantId }, include: { priceHistory: true } }),
-      prisma.menuItem.findMany({
-        where: { restaurantId },
-        include: { recipe: { include: { ingredients: true } } },
-      }),
-      // sourceFileData exclu (select explicite plutôt que omit, qui
-      // demanderait une preview feature sur cette version de Prisma) :
-      // des octets bruts n'ont pas leur place dans un export JSON pensé
-      // pour être lisible (et Buffer se sérialise en JSON comme un
-      // tableau d'un octet par élément, illisible et énorme).
-      prisma.invoice.findMany({
-        where: { restaurantId },
-        select: {
-          id: true,
-          restaurantId: true,
-          supplierId: true,
-          status: true,
-          invoiceDate: true,
-          totalAmount: true,
-          sourceFileMimeType: true,
-          rawExtractionJson: true,
-          errorMessage: true,
-          createdAt: true,
-          updatedAt: true,
-          lineItems: true,
-        },
-      }),
-      prisma.order.findMany({ where: { restaurantId }, include: { lineItems: true } }),
-      prisma.wasteEntry.findMany({ where: { restaurantId } }),
-      prisma.marginAlert.findMany({ where: { restaurantId } }),
-    ]);
+  const [
+    restaurant,
+    users,
+    suppliers,
+    products,
+    menuItems,
+    invoices,
+    orders,
+    wasteEntries,
+    marginAlerts,
+    employeeAvailabilities,
+    staffingRequirements,
+    schedules,
+    hygieneReferenceItems,
+    cleaningChecklistTemplates,
+    cleaningChecklistCompletions,
+    controlDocuments,
+  ] = await Promise.all([
+    prisma.restaurant.findUniqueOrThrow({ where: { id: restaurantId } }),
+    prisma.user.findMany({
+      where: { restaurantId },
+      select: { id: true, email: true, firstName: true, lastName: true, role: true, isActive: true, createdAt: true },
+    }),
+    prisma.supplier.findMany({ where: { restaurantId } }),
+    prisma.product.findMany({ where: { restaurantId }, include: { priceHistory: true } }),
+    prisma.menuItem.findMany({
+      where: { restaurantId },
+      include: { recipe: { include: { ingredients: true } } },
+    }),
+    // sourceFileData exclu (select explicite plutôt que omit, qui
+    // demanderait une preview feature sur cette version de Prisma) :
+    // des octets bruts n'ont pas leur place dans un export JSON pensé
+    // pour être lisible (et Buffer se sérialise en JSON comme un
+    // tableau d'un octet par élément, illisible et énorme).
+    prisma.invoice.findMany({
+      where: { restaurantId },
+      select: {
+        id: true,
+        restaurantId: true,
+        supplierId: true,
+        status: true,
+        invoiceDate: true,
+        totalAmount: true,
+        sourceFileMimeType: true,
+        rawExtractionJson: true,
+        errorMessage: true,
+        createdAt: true,
+        updatedAt: true,
+        lineItems: true,
+      },
+    }),
+    prisma.order.findMany({ where: { restaurantId }, include: { lineItems: true } }),
+    prisma.wasteEntry.findMany({ where: { restaurantId } }),
+    prisma.marginAlert.findMany({ where: { restaurantId } }),
+    // Phase 7 (31/07/2026) — Planning/Hygiène/Contrôle, absentes de
+    // l'export initial (seule deleteRestaurant avait été mise à jour
+    // pour ces tables, voir son commentaire ci-dessous).
+    prisma.employeeAvailability.findMany({ where: { restaurantId } }),
+    prisma.staffingRequirement.findMany({ where: { restaurantId } }),
+    prisma.schedule.findMany({ where: { restaurantId }, include: { shiftAssignments: true } }),
+    // mediaData exclu, même raisonnement que sourceFileData ci-dessus
+    // (Invoice) : des octets bruts n'ont pas leur place dans ce JSON.
+    prisma.hygieneReferenceItem.findMany({
+      where: { restaurantId },
+      select: {
+        id: true,
+        restaurantId: true,
+        title: true,
+        content: true,
+        mediaMimeType: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    }),
+    prisma.cleaningChecklistTemplate.findMany({ where: { restaurantId }, include: { items: true } }),
+    prisma.cleaningChecklistCompletion.findMany({ where: { restaurantId }, include: { items: true } }),
+    // fileData exclu, même raisonnement que sourceFileData ci-dessus
+    // (Invoice) : des octets bruts n'ont pas leur place dans ce JSON.
+    prisma.controlDocument.findMany({
+      where: { restaurantId },
+      select: {
+        id: true,
+        restaurantId: true,
+        organism: true,
+        category: true,
+        label: true,
+        fileMimeType: true,
+        uploadedById: true,
+        uploadedAt: true,
+      },
+    }),
+  ]);
 
   logger.info({ restaurantId, userId: req.user!.id }, 'Export RGPD des données du restaurant demandé');
 
@@ -191,6 +244,13 @@ export async function exportRestaurantData(req: Request, res: Response) {
     orders,
     wasteEntries,
     marginAlerts,
+    employeeAvailabilities,
+    staffingRequirements,
+    schedules,
+    hygieneReferenceItems,
+    cleaningChecklistTemplates,
+    cleaningChecklistCompletions,
+    controlDocuments,
   });
 }
 
