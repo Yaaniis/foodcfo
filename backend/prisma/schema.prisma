@@ -178,6 +178,21 @@ enum ControlOrganism {
   INSPECTION_TRAVAIL
 }
 
+// Les 5 systèmes de caisse tranchés avec l'utilisateur le 04/08/2026,
+// après recherche du paysage français réel (voir FoodCFO_PLAN.md,
+// Phase 9) — pas une supposition. SumUp explicitement écarté (pas de
+// Titre Restaurant, intégration fermée). Enum plutôt qu'une table :
+// liste courte et qui ne change pas à l'usage (ajouter un système
+// demande une vraie intégration technique de toute façon, pas juste
+// une ligne en base) — même raisonnement que ControlOrganism ci-dessus.
+enum PosProvider {
+  LIGHTSPEED
+  LADDITION
+  ZELTY
+  INNOVORDER
+  CLYO_SYSTEMS
+}
+
 // ============================================================================
 // RESTAURANT — racine du multi-tenant
 // ============================================================================
@@ -230,6 +245,10 @@ model Restaurant {
   cleaningChecklistTemplates   CleaningChecklistTemplate[]
   cleaningChecklistCompletions CleaningChecklistCompletion[]
   controlDocuments             ControlDocument[]
+
+  // Phase 9 (04/08/2026)
+  posConnections PosConnection[]
+  posSales       PosSale[]
 
   @@map("restaurants")
 }
@@ -434,6 +453,9 @@ model MenuItem {
 
   wasteEntries WasteEntry[]
   marginAlerts MarginAlert[]
+
+  // Phase 9 (04/08/2026) — rapprochement des lignes de vente caisse
+  posSaleLineItems PosSaleLineItem[]
 
   @@index([restaurantId])
   @@index([restaurantId, isActive])
@@ -949,4 +971,119 @@ model ControlDocument {
 
   @@index([restaurantId, organism])
   @@map("control_documents")
+}
+
+// ============================================================================
+// PHASE 9 — CAISSE ENREGISTREUSE / POS (04/08/2026)
+// ============================================================================
+// Cadrage complet dans FoodCFO_PLAN.md avant ce modèle : multi-caisses dès
+// le départ (chaque restaurant a son propre système), 5 fournisseurs
+// tranchés après recherche du marché français réel (PosProvider ci-dessus).
+// Politique de correction manuelle actée le 04/08/2026, dans les mots de
+// l'utilisateur : l'auto-rapprochement doit être fiable par défaut (aucune
+// action requise si la vente est bien reconnue), mais la correction doit
+// rester toujours possible et complète quand elle l'est. D'où le même
+// motif que InvoiceLineItem (Phase 3) plutôt qu'une nouvelle invention :
+// valeur brute toujours conservée, rapprochement nullable, indicateur de
+// correction manuelle — déjà éprouvé sur les factures, pas réinventé ici.
+// Mécanisme de connexion réel (webhook/polling, OAuth/clé API) volontairement
+// pas encore modélisé : dépend du premier système intégré, pas encore choisi
+// — PosConnection reste donc minimal (quel fournisseur, actif ou non) plutôt
+// que de figer une forme de champs qui pourrait ne pas convenir une fois la
+// vraie mécanique de connexion investiguée.
+
+model PosConnection {
+  id           String     @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  provider PosProvider
+
+  // Une seule connexion active à la fois par restaurant en pratique (on
+  // change de caisse, on ne cumule pas), mais désactivée plutôt que
+  // supprimée pour ne jamais perdre la provenance des ventes déjà
+  // remontées via cette connexion (PosSale.posConnectionId reste valide).
+  isActive Boolean @default(true)
+
+  connectedAt    DateTime  @default(now())
+  disconnectedAt DateTime?
+
+  sales PosSale[]
+
+  @@index([restaurantId])
+  @@index([restaurantId, isActive])
+  @@map("pos_connections")
+}
+
+model PosSale {
+  id           String     @id @default(uuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  // Restrict plutôt que Cascade : une connexion désactivée ne doit pas
+  // faire disparaître les ventes déjà remontées à travers elle.
+  posConnectionId String
+  posConnection   PosConnection @relation(fields: [posConnectionId], references: [id], onDelete: Restrict)
+
+  // Identifiant du ticket côté caisse — permet de détecter un doublon si
+  // le même événement est renvoyé deux fois (retry webhook, par exemple).
+  // Scopé à la connexion plutôt qu'au restaurant seul : deux connexions
+  // successives (changement de caisse) pourraient réutiliser des ids.
+  externalId String
+
+  // Horodatage réel de la vente côté caisse, pas celui de la réception
+  // par FoodCFO (qui peut être différé en cas de polling).
+  soldAt DateTime
+
+  totalAmount Decimal @db.Decimal(10, 2)
+
+  // Charge utile brute reçue de la caisse, conservée pour audit/debug —
+  // même raisonnement que Invoice.rawExtractionJson (Phase 3).
+  rawPayload Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lineItems PosSaleLineItem[]
+
+  @@unique([posConnectionId, externalId])
+  @@index([restaurantId])
+  @@index([restaurantId, soldAt])
+  @@map("pos_sales")
+}
+
+model PosSaleLineItem {
+  id        String  @id @default(uuid())
+  posSaleId String
+  posSale   PosSale @relation(fields: [posSaleId], references: [id], onDelete: Cascade)
+
+  // Nullable : au moment de la remontée automatique, le plat n'est pas
+  // forcément rapproché avec certitude du catalogue interne — à
+  // valider/corriger si besoin. Même principe que
+  // InvoiceLineItem.productId (Phase 3).
+  menuItemId String?
+  menuItem   MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+
+  // Libellé brut tel que remonté par la caisse, avant rapprochement —
+  // toujours conservé même après rapprochement, pour audit. Même
+  // principe que InvoiceLineItem.rawLabel (Phase 3).
+  rawLabel String
+
+  quantity      Decimal @db.Decimal(10, 4)
+  unitPriceTTC  Decimal @db.Decimal(10, 2)
+  totalPriceTTC Decimal @db.Decimal(10, 2)
+
+  // A été revu/corrigé manuellement par un utilisateur après la remontée
+  // automatique ? Politique actée le 04/08/2026 : le rapprochement
+  // automatique doit être fiable par défaut (rien à faire si la vente
+  // est bien reconnue), mais la correction reste toujours possible et
+  // complète quand elle est nécessaire.
+  wasManuallyEdited Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([posSaleId])
+  @@index([menuItemId])
+  @@map("pos_sale_line_items")
 }
