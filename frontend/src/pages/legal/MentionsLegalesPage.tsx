@@ -8,10 +8,10 @@ import LegalPageLayout from '../../components/LegalPageLayout';
 export default function MentionsLegalesPage() {
   return (
     <LegalPageLayout title="Mentions légales">
-      <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-amber-900">
+      <div className="bg-warn-soft border border-warn/30 rounded-card-md px-4 py-3 text-warn">
         <p className="font-semibold">À compléter avant mise en ligne commerciale</p>
         <p className="mt-1">
-          Les champs marqués <span className="font-mono text-xs bg-amber-100 px-1 rounded">[À COMPLÉTER]</span>{' '}
+          Les champs marqués <span className="font-mono text-xs bg-warn/15 px-1 rounded-card-sm">[À COMPLÉTER]</span>{' '}
           nécessitent vos informations réelles (identité de l'éditeur, SIRET, adresse). Ce texte est un modèle de
           structure standard, pas un document validé par un professionnel du droit — faites-le relire par un
           avocat ou votre expert-comptable avant toute exploitation commerciale.
@@ -37,7 +37,7 @@ export default function MentionsLegalesPage() {
         <p>
           L'application (serveurs et base de données) est hébergée par Railway Corporation, 548 Market St PMB
           68956, San Francisco, CA 94104, États-Unis (
-          <a href="https://railway.com" className="underline" target="_blank" rel="noreferrer">
+          <a href="https://railway.com" target="_blank" rel="noreferrer">
             railway.com
           </a>
           ).

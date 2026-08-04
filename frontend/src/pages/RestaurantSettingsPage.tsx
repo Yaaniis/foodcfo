@@ -25,6 +25,11 @@ const COMMON_TIMEZONES = [
   'UTC',
 ];
 
+const inputClass =
+  'mt-1 w-full min-h-[44px] rounded-card-md border border-border bg-surface px-3 text-text placeholder:text-text-faint focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft';
+const primaryBtnClass =
+  'w-full min-h-[44px] rounded-card-md bg-accent text-accent-text font-medium hover:brightness-105 disabled:opacity-50';
+
 export default function RestaurantSettingsPage() {
   const { authFetch } = useAuth();
 
@@ -76,69 +81,52 @@ export default function RestaurantSettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-8">
-      <div className="max-w-2xl mx-auto">
-        <Link to="/" className="text-sm text-slate-500 underline">
-          ← Retour à l'accueil
-        </Link>
-        <h1 className="text-2xl font-bold text-slate-900 mt-2 mb-6">Paramètres du restaurant</h1>
+    <div className="max-w-3xl">
+      <Link to="/" className="text-sm text-text-muted hover:text-accent">
+        ← Retour à l'accueil
+      </Link>
+      <h2 className="font-display text-2xl font-bold tracking-tight mt-2 mb-6">Paramètres du restaurant</h2>
 
-        {isLoading ? (
-          <p className="text-slate-500">Chargement…</p>
-        ) : (
-          <div className="bg-white rounded-2xl border border-slate-200 p-6">
-            <form onSubmit={handleSubmit} className="space-y-3">
-              <label className="block text-sm font-medium text-slate-700">
-                Nom du restaurant
-                <input
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="mt-1 w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
-                />
-              </label>
+      {isLoading ? (
+        <p className="text-text-faint">Chargement…</p>
+      ) : (
+        <div className="bg-surface border border-border rounded-card-lg shadow-card p-6">
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <label className="block text-sm font-medium text-text-muted">
+              Nom du restaurant
+              <input required value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
+            </label>
 
-              <label className="block text-sm font-medium text-slate-700">
-                Fuseau horaire
-                <select
-                  value={timezone}
-                  onChange={(e) => setTimezone(e.target.value)}
-                  className="mt-1 w-full min-h-[44px] rounded-lg border border-slate-300 px-3"
-                >
-                  {/* Garde l'actuel dans la liste même s'il est hors de la sélection courante */}
-                  {!COMMON_TIMEZONES.includes(timezone) && <option value={timezone}>{timezone}</option>}
-                  {COMMON_TIMEZONES.map((tz) => (
-                    <option key={tz} value={tz}>
-                      {tz}
-                    </option>
-                  ))}
-                </select>
-                <span className="block text-xs text-slate-400 mt-1">
-                  Utilisé pour calculer "ce mois-ci" (tableau de bord, rapports, export comptable) à l'heure locale du
-                  restaurant.
-                </span>
-              </label>
+            <label className="block text-sm font-medium text-text-muted">
+              Fuseau horaire
+              <select value={timezone} onChange={(e) => setTimezone(e.target.value)} className={inputClass}>
+                {/* Garde l'actuel dans la liste même s'il est hors de la sélection courante */}
+                {!COMMON_TIMEZONES.includes(timezone) && <option value={timezone}>{timezone}</option>}
+                {COMMON_TIMEZONES.map((tz) => (
+                  <option key={tz} value={tz}>
+                    {tz}
+                  </option>
+                ))}
+              </select>
+              <span className="block text-xs text-text-faint mt-1">
+                Utilisé pour calculer "ce mois-ci" (tableau de bord, rapports, export comptable) à l'heure locale du
+                restaurant.
+              </span>
+            </label>
 
-              {message && (
-                <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
-                  {message}
-                </p>
-              )}
-              {error && (
-                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
-              )}
+            {message && (
+              <p className="text-sm text-good bg-good-soft border border-good/30 rounded-card-md px-3 py-2">{message}</p>
+            )}
+            {error && (
+              <p className="text-sm text-danger bg-danger-soft border border-danger/30 rounded-card-md px-3 py-2">{error}</p>
+            )}
 
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full min-h-[44px] rounded-lg bg-slate-900 text-white font-medium disabled:opacity-50"
-              >
-                {isSubmitting ? 'Enregistrement…' : 'Enregistrer'}
-              </button>
-            </form>
-          </div>
-        )}
-      </div>
+            <button type="submit" disabled={isSubmitting} className={primaryBtnClass}>
+              {isSubmitting ? 'Enregistrement…' : 'Enregistrer'}
+            </button>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

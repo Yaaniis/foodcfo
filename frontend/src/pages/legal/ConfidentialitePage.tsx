@@ -2,16 +2,19 @@ import LegalPageLayout from '../../components/LegalPageLayout';
 
 // Reflète ce que l'application fait réellement (vérifié dans le code,
 // pas supposé) : pas de cookie de tracking, tokens en localStorage,
-// sous-traitants listés = ceux effectivement intégrés (Railway, Resend,
-// Anthropic, Meta/WhatsApp, Twilio — voir backend/src/lib/), export et
-// suppression RGPD déjà fonctionnels via l'application elle-même.
+// sous-traitants listés = ceux effectivement intégrés (Railway, Stripe,
+// Resend, Anthropic, Meta/WhatsApp, Twilio — voir backend/src/lib/),
+// export et suppression RGPD déjà fonctionnels via l'application
+// elle-même (l'export JSON n'inclut pas encore les données Planning/
+// Hygiène/Contrôle de la Phase 7, voir libellé volontairement non
+// qualifié de "complet" ci-dessous).
 export default function ConfidentialitePage() {
   return (
     <LegalPageLayout title="Politique de confidentialité">
-      <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-amber-900">
+      <div className="bg-warn-soft border border-warn/30 rounded-card-md px-4 py-3 text-warn">
         <p className="font-semibold">À compléter avant mise en ligne commerciale</p>
         <p className="mt-1">
-          L'identité du responsable de traitement (<span className="font-mono text-xs bg-amber-100 px-1 rounded">
+          L'identité du responsable de traitement (<span className="font-mono text-xs bg-warn/15 px-1 rounded-card-sm">
             [À COMPLÉTER]
           </span>
           ) doit être renseignée. Le reste de cette page décrit fidèlement le fonctionnement technique actuel de
@@ -37,6 +40,13 @@ export default function ConfidentialitePage() {
           du restaurant, pas des données personnelles de ses clients — FoodCFO ne collecte aucune donnée sur les
           clients finaux du restaurant.
         </p>
+        <p className="mt-2">
+          Pour la gestion d'équipe et la conformité réglementaire (Planning, Hygiène, Contrôle) : disponibilités,
+          plannings et heures travaillées des membres de l'équipe, complétions de checklists d'hygiène, ainsi que
+          les documents que vous déposez vous-même pour constituer vos dossiers de conformité (URSSAF, DDPP,
+          DGCCRF, DGFiP, Inspection du travail) — qui peuvent contenir des données personnelles de membres de votre
+          personnel (registre unique du personnel, bulletins de paye, contrats de travail, par exemple).
+        </p>
       </section>
 
       <section>
@@ -58,6 +68,7 @@ export default function ConfidentialitePage() {
         <p>Vos données ne sont jamais vendues ni utilisées à des fins publicitaires. Elles peuvent être traitées par les sous-traitants techniques suivants, uniquement dans la mesure nécessaire au fonctionnement du service :</p>
         <ul>
           <li><strong>Railway Corporation</strong> (États-Unis) — hébergement de l'application, données traitées dans la région Europe (Amsterdam)</li>
+          <li><strong>Stripe</strong> — traitement des paiements et de la facturation de votre abonnement (souscription, moyen de paiement, factures), si vous souscrivez à l'offre payante. Le paiement s'effectue directement sur une page sécurisée hébergée par Stripe : FoodCFO ne reçoit et ne stocke jamais votre numéro de carte bancaire</li>
           <li><strong>Anthropic</strong> — extraction automatique des données de factures (uniquement si vous utilisez l'upload de facture), lorsque cette fonctionnalité est activée</li>
           <li><strong>Resend</strong> — envoi des emails de commande fournisseur et des rapports mensuels, lorsque cette fonctionnalité est activée</li>
           <li><strong>Meta (WhatsApp Business)</strong> et <strong>Twilio (SMS)</strong> — envoi des commandes fournisseurs, uniquement pour les fournisseurs dont vous avez choisi ce canal de contact</li>
@@ -92,7 +103,7 @@ export default function ConfidentialitePage() {
         <p className="mt-2">
           Vous pouvez également nous contacter à [À COMPLÉTER : email de contact] pour toute question, ou
           introduire une réclamation auprès de la CNIL (
-          <a href="https://www.cnil.fr" className="underline" target="_blank" rel="noreferrer">
+          <a href="https://www.cnil.fr" target="_blank" rel="noreferrer">
             www.cnil.fr
           </a>
           ).

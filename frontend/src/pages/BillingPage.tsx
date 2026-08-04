@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ApiRequestError } from '../lib/apiClient';
+import Badge, { type BadgeTone } from '../components/Badge';
 
 interface BillingStatus {
   billingConfigured: boolean;
@@ -9,16 +10,34 @@ interface BillingStatus {
   subscriptionCurrentPeriodEnd: string | null;
 }
 
-const STATUS_LABELS: Record<string, { label: string; className: string }> = {
-  ACTIVE: { label: 'Actif', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  TRIALING: { label: "Période d'essai", className: 'bg-blue-50 text-blue-700 border-blue-200' },
-  PAST_DUE: { label: 'Paiement en retard', className: 'bg-amber-50 text-amber-700 border-amber-200' },
-  UNPAID: { label: 'Impayé', className: 'bg-red-50 text-red-700 border-red-200' },
-  CANCELED: { label: 'Résilié', className: 'bg-slate-100 text-slate-600 border-slate-200' },
-  INCOMPLETE: { label: 'Incomplet', className: 'bg-amber-50 text-amber-700 border-amber-200' },
-  INCOMPLETE_EXPIRED: { label: 'Expiré sans paiement', className: 'bg-slate-100 text-slate-600 border-slate-200' },
-  PAUSED: { label: 'En pause', className: 'bg-slate-100 text-slate-600 border-slate-200' },
+const STATUS_LABELS: Record<string, string> = {
+  ACTIVE: 'Actif',
+  TRIALING: "Période d'essai",
+  PAST_DUE: 'Paiement en retard',
+  UNPAID: 'Impayé',
+  CANCELED: 'Résilié',
+  INCOMPLETE: 'Incomplet',
+  INCOMPLETE_EXPIRED: 'Expiré sans paiement',
+  PAUSED: 'En pause',
 };
+
+// Même mapping que celui déjà en place dans l'original (émeraude,
+// bleu, ambre, rouge, ardoise), traduit vers les 5 tons du système.
+const STATUS_TONE: Record<string, BadgeTone> = {
+  ACTIVE: 'success',
+  TRIALING: 'info',
+  PAST_DUE: 'attention',
+  UNPAID: 'danger',
+  CANCELED: 'neutral',
+  INCOMPLETE: 'attention',
+  INCOMPLETE_EXPIRED: 'neutral',
+  PAUSED: 'neutral',
+};
+
+const primaryBtnClass =
+  'w-full min-h-[44px] rounded-card-md bg-accent text-accent-text font-medium hover:brightness-105 disabled:opacity-50';
+const secondaryBtnClass =
+  'w-full min-h-[44px] rounded-card-md border border-border text-text font-medium hover:border-border-strong disabled:opacity-50';
 
 export default function BillingPage() {
   const { authFetch } = useAuth();
@@ -73,81 +92,66 @@ export default function BillingPage() {
   }
 
   if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center text-slate-400">Chargement…</div>;
+    return <p className="text-text-faint">Chargement…</p>;
   }
 
   const hasActiveOrTrialing = status?.subscriptionStatus === 'ACTIVE' || status?.subscriptionStatus === 'TRIALING';
-  const badge = status?.subscriptionStatus ? STATUS_LABELS[status.subscriptionStatus] : null;
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-8">
-      <div className="max-w-2xl mx-auto">
-        <Link to="/" className="text-sm text-slate-500 underline">
-          ← Retour à l'accueil
-        </Link>
-        <h1 className="text-2xl font-bold text-slate-900 mt-2 mb-6">Abonnement</h1>
+    <div className="max-w-3xl">
+      <Link to="/" className="text-sm text-text-muted hover:text-accent">
+        ← Retour à l'accueil
+      </Link>
+      <h2 className="font-display text-2xl font-bold tracking-tight mt-2 mb-6">Abonnement</h2>
 
-        {checkoutResult === 'success' && (
-          <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 mb-4">
-            Paiement enregistré — merci ! Le statut ci-dessous se met à jour automatiquement.
+      {checkoutResult === 'success' && (
+        <p className="text-sm text-good bg-good-soft border border-good/30 rounded-card-md px-3 py-2 mb-4">
+          Paiement enregistré — merci ! Le statut ci-dessous se met à jour automatiquement.
+        </p>
+      )}
+      {checkoutResult === 'cancelled' && (
+        <p className="text-sm text-text-muted bg-surface-hover border border-border rounded-card-md px-3 py-2 mb-4">
+          Paiement annulé, aucun montant n'a été prélevé.
+        </p>
+      )}
+      {error && (
+        <p className="text-sm text-danger bg-danger-soft border border-danger/30 rounded-card-md px-3 py-2 mb-4">{error}</p>
+      )}
+
+      <div className="bg-surface border border-border rounded-card-lg shadow-card p-6">
+        {!status?.billingConfigured ? (
+          <p className="text-sm text-text-muted">
+            La facturation en ligne n'est pas encore activée sur ce déploiement.
           </p>
-        )}
-        {checkoutResult === 'cancelled' && (
-          <p className="text-sm text-slate-600 bg-slate-100 border border-slate-200 rounded-lg px-3 py-2 mb-4">
-            Paiement annulé, aucun montant n'a été prélevé.
-          </p>
-        )}
-        {error && (
-          <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{error}</p>
-        )}
-
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          {!status?.billingConfigured ? (
-            <p className="text-sm text-slate-500">
-              La facturation en ligne n'est pas encore activée sur ce déploiement.
-            </p>
-          ) : (
-            <>
-              <div className="flex items-center gap-2 mb-4">
-                <span className="text-sm font-medium text-slate-700">Statut :</span>
-                {badge ? (
-                  <span className={`text-xs font-medium px-2 py-1 rounded-full border ${badge.className}`}>
-                    {badge.label}
-                  </span>
-                ) : (
-                  <span className="text-xs font-medium px-2 py-1 rounded-full border bg-slate-100 text-slate-600 border-slate-200">
-                    Aucun abonnement
-                  </span>
-                )}
-              </div>
-
-              {status.subscriptionCurrentPeriodEnd && (
-                <p className="text-sm text-slate-500 mb-4">
-                  {status.subscriptionStatus === 'CANCELED' ? 'Accès jusqu\'au' : 'Prochain renouvellement le'}{' '}
-                  {new Date(status.subscriptionCurrentPeriodEnd).toLocaleDateString('fr-FR')}
-                </p>
-              )}
-
-              {hasActiveOrTrialing ? (
-                <button
-                  onClick={handleManage}
-                  disabled={isRedirecting}
-                  className="w-full min-h-[44px] rounded-lg border border-slate-300 text-slate-700 font-medium disabled:opacity-50"
-                >
-                  {isRedirecting ? 'Redirection…' : 'Gérer mon abonnement'}
-                </button>
+        ) : (
+          <>
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-sm font-medium text-text-muted">Statut :</span>
+              {status.subscriptionStatus && STATUS_LABELS[status.subscriptionStatus] ? (
+                <Badge tone={STATUS_TONE[status.subscriptionStatus]}>{STATUS_LABELS[status.subscriptionStatus]}</Badge>
               ) : (
-                <button
-                  onClick={handleSubscribe}
-                  disabled={isRedirecting}
-                  className="w-full min-h-[44px] rounded-lg bg-slate-900 text-white font-medium disabled:opacity-50"
-                >
-                  {isRedirecting ? 'Redirection…' : "S'abonner"}
-                </button>
+                <Badge tone="neutral">Aucun abonnement</Badge>
               )}
-            </>
-          )}
-        </div>
+            </div>
+
+            {status.subscriptionCurrentPeriodEnd && (
+              <p className="text-sm text-text-muted mb-4">
+                {status.subscriptionStatus === 'CANCELED' ? 'Accès jusqu\'au' : 'Prochain renouvellement le'}{' '}
+                {new Date(status.subscriptionCurrentPeriodEnd).toLocaleDateString('fr-FR')}
+              </p>
+            )}
+
+            {hasActiveOrTrialing ? (
+              <button onClick={handleManage} disabled={isRedirecting} className={secondaryBtnClass}>
+                {isRedirecting ? 'Redirection…' : 'Gérer mon abonnement'}
+              </button>
+            ) : (
+              <button onClick={handleSubscribe} disabled={isRedirecting} className={primaryBtnClass}>
+                {isRedirecting ? 'Redirection…' : "S'abonner"}
+              </button>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

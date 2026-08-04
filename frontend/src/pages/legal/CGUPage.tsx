@@ -1,13 +1,14 @@
 import LegalPageLayout from '../../components/LegalPageLayout';
 
-// Pas de mention de tarifs fermes : aucun système de facturation n'existe
-// dans l'application à ce stade (voir journal de bord), donc toute
-// clause de type CGV serait fausse. À réviser le jour où un modèle de
-// facturation est mis en place.
+// Un abonnement payant en self-service existe désormais (Stripe Checkout
+// + portail Stripe, voir FoodCFO_PLAN.md) : la section Tarifs le
+// mentionne, mais les conditions commerciales précises (montant,
+// périodicité, résiliation, remboursement) restent à rédiger avant toute
+// mise en vente réelle.
 export default function CGUPage() {
   return (
     <LegalPageLayout title="Conditions générales d'utilisation">
-      <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-amber-900">
+      <div className="bg-warn-soft border border-warn/30 rounded-card-md px-4 py-3 text-warn">
         <p className="font-semibold">À compléter avant mise en ligne commerciale</p>
         <p className="mt-1">
           Modèle de structure standard pour un logiciel en mode SaaS — à faire relire par un professionnel du
@@ -20,8 +21,8 @@ export default function CGUPage() {
         <p>
           Les présentes conditions générales d'utilisation (CGU) régissent l'accès et l'utilisation de
           l'application FoodCFO, un outil d'aide à la gestion destiné aux restaurateurs (suivi des marges,
-          gestion des commandes fournisseurs, suivi du gaspillage, rapports). En créant un compte, vous acceptez
-          sans réserve les présentes CGU.
+          gestion des commandes fournisseurs, suivi du gaspillage, rapports, planning d'équipe, suivi hygiène,
+          conformité réglementaire). En créant un compte, vous acceptez sans réserve les présentes CGU.
         </p>
       </section>
 
@@ -59,7 +60,12 @@ export default function CGUPage() {
 
       <section>
         <h2>Tarifs</h2>
-        <p>[À COMPLÉTER : conditions tarifaires — aucun système de facturation n'est en place à ce jour ; cette section devra être complétée avant toute mise en vente du service].</p>
+        <p>
+          FoodCFO propose un abonnement payant, souscrit et géré en libre-service directement depuis
+          l'application (moyen de paiement, factures, résiliation) via Stripe. [À COMPLÉTER : conditions
+          tarifaires précises — montant, périodicité, modalités de résiliation et de remboursement — à rédiger
+          avant toute mise en vente commerciale du service].
+        </p>
       </section>
 
       <section>

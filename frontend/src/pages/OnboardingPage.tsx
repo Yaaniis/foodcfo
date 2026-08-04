@@ -3,6 +3,15 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ApiRequestError } from '../lib/apiClient';
 import LegalFooter from '../components/LegalFooter';
+import AuthBrandMark from '../components/AuthBrandMark';
+
+const cardShadow =
+  'shadow-[0_20px_50px_-20px_rgba(0,0,0,0.6),0_0_0_1px_rgba(232,234,242,0.09),0_0_40px_-12px_rgba(255,159,74,0.25)]';
+const inputClass =
+  'w-full min-h-[44px] rounded-card-md border border-border bg-surface px-3 text-text placeholder:text-text-faint focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft';
+const primaryBtnClass =
+  'w-full min-h-[44px] rounded-card-md bg-accent text-accent-text font-medium hover:brightness-105 disabled:opacity-50';
+const labelClass = 'text-xs text-text-faint uppercase tracking-wide font-semibold';
 
 export default function OnboardingPage() {
   const { createRestaurant } = useAuth();
@@ -33,128 +42,129 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4 py-8">
-      <div className="w-full max-w-sm">
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
-        <h1 className="text-2xl font-bold text-slate-900 mb-1">Créer mon restaurant</h1>
-        <p className="text-slate-500 mb-6">Vous deviendrez automatiquement Gérant de ce restaurant.</p>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="restaurantName" className="block text-sm font-medium text-slate-700 mb-1">
-              Nom du restaurant
-            </label>
-            <input
-              id="restaurantName"
-              required
-              value={restaurantName}
-              onChange={(e) => setRestaurantName(e.target.value)}
-              className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
+    <div className="min-h-screen flex items-center justify-center bg-bg bg-app-gradient px-4 py-8">
+      <div className="w-full max-w-[380px]">
+        <div className={`bg-surface border border-border rounded-card-lg ${cardShadow} p-6 flex flex-col gap-5`}>
+          <div className="flex flex-col items-center gap-3 text-center">
+            <AuthBrandMark />
             <div>
-              <label htmlFor="firstName" className="block text-sm font-medium text-slate-700 mb-1">
-                Prénom
-              </label>
-              <input
-                id="firstName"
-                required
-                autoComplete="given-name"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
-              />
-            </div>
-            <div>
-              <label htmlFor="lastName" className="block text-sm font-medium text-slate-700 mb-1">
-                Nom
-              </label>
-              <input
-                id="lastName"
-                required
-                autoComplete="family-name"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
-              />
+              <h2 className="font-display text-lg font-bold">Créer mon restaurant</h2>
+              <p className="text-sm text-text-muted mt-1">Vous deviendrez automatiquement Gérant de ce restaurant.</p>
             </div>
           </div>
 
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1">
-              Email
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="restaurantName" className={labelClass}>
+                Nom du restaurant
+              </label>
+              <input
+                id="restaurantName"
+                required
+                value={restaurantName}
+                onChange={(e) => setRestaurantName(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="firstName" className={labelClass}>
+                  Prénom
+                </label>
+                <input
+                  id="firstName"
+                  required
+                  autoComplete="given-name"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="lastName" className={labelClass}>
+                  Nom
+                </label>
+                <input
+                  id="lastName"
+                  required
+                  autoComplete="family-name"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="email" className={labelClass}>
+                Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                required
+                autoComplete="username"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="password" className={labelClass}>
+                Mot de passe
+              </label>
+              <input
+                id="password"
+                type="password"
+                required
+                minLength={8}
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={inputClass}
+              />
+              <p className="text-xs text-text-faint">8 caractères minimum</p>
+            </div>
+
+            <label className="flex items-start gap-2 min-h-[44px]">
+              <input
+                type="checkbox"
+                checked={acceptTerms}
+                onChange={(e) => setAcceptTerms(e.target.checked)}
+                className="mt-1 h-4 w-4 shrink-0 accent-accent"
+              />
+              <span className="text-sm text-text-muted">
+                J'accepte les{' '}
+                <Link to="/cgu" target="_blank" className="text-accent hover:underline">
+                  CGU
+                </Link>{' '}
+                et la{' '}
+                <Link to="/confidentialite" target="_blank" className="text-accent hover:underline">
+                  politique de confidentialité
+                </Link>
+                .
+              </span>
             </label>
-            <input
-              id="email"
-              type="email"
-              required
-              autoComplete="username"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
-            />
-          </div>
 
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1">
-              Mot de passe
-            </label>
-            <input
-              id="password"
-              type="password"
-              required
-              minLength={8}
-              autoComplete="new-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
-            />
-            <p className="text-xs text-slate-400 mt-1">8 caractères minimum</p>
-          </div>
+            {error && (
+              <p className="text-sm text-danger bg-danger-soft border border-danger/30 rounded-card-md px-3 py-2">{error}</p>
+            )}
 
-          <label className="flex items-start gap-2 min-h-[44px]">
-            <input
-              type="checkbox"
-              checked={acceptTerms}
-              onChange={(e) => setAcceptTerms(e.target.checked)}
-              className="mt-1 h-4 w-4 shrink-0"
-            />
-            <span className="text-sm text-slate-600">
-              J'accepte les{' '}
-              <Link to="/cgu" target="_blank" className="underline text-slate-900">
-                CGU
-              </Link>{' '}
-              et la{' '}
-              <Link to="/confidentialite" target="_blank" className="underline text-slate-900">
-                politique de confidentialité
-              </Link>
-              .
-            </span>
-          </label>
+            <button type="submit" disabled={isSubmitting || !acceptTerms} className={primaryBtnClass}>
+              {isSubmitting ? 'Création…' : 'Créer mon restaurant'}
+            </button>
+          </form>
 
-          {error && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
-          )}
-
-          <button
-            type="submit"
-            disabled={isSubmitting || !acceptTerms}
-            className="w-full min-h-[44px] rounded-lg bg-slate-900 text-white font-medium disabled:opacity-50"
-          >
-            {isSubmitting ? 'Création…' : 'Créer mon restaurant'}
-          </button>
-        </form>
-
-        <p className="text-sm text-slate-500 mt-6 text-center">
-          Déjà un compte ?{' '}
-          <Link to="/login" className="text-slate-900 font-medium underline">
-            Se connecter
-          </Link>
-        </p>
-      </div>
-      <LegalFooter />
+          <p className="text-sm text-text-muted text-center">
+            Déjà un compte ?{' '}
+            <Link to="/login" className="text-accent font-semibold hover:underline">
+              Se connecter
+            </Link>
+          </p>
+        </div>
+        <LegalFooter />
       </div>
     </div>
   );

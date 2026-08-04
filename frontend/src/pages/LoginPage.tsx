@@ -3,6 +3,15 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth, type RestaurantChoice } from '../context/AuthContext';
 import { ApiRequestError } from '../lib/apiClient';
 import LegalFooter from '../components/LegalFooter';
+import AuthBrandMark from '../components/AuthBrandMark';
+
+const cardShadow =
+  'shadow-[0_20px_50px_-20px_rgba(0,0,0,0.6),0_0_0_1px_rgba(232,234,242,0.09),0_0_40px_-12px_rgba(255,159,74,0.25)]';
+const inputClass =
+  'w-full min-h-[44px] rounded-card-md border border-border bg-surface px-3 text-text placeholder:text-text-faint focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft';
+const primaryBtnClass =
+  'w-full min-h-[44px] rounded-card-md bg-accent text-accent-text font-medium hover:brightness-105 disabled:opacity-50';
+const labelClass = 'text-xs text-text-faint uppercase tracking-wide font-semibold';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -49,19 +58,21 @@ export default function LoginPage() {
 
   if (restaurantChoices) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-        <div className="w-full max-w-sm">
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
-            <h1 className="text-2xl font-bold text-slate-900 mb-1">FoodCFO</h1>
-            <p className="text-slate-500 mb-6">Ce compte est lié à plusieurs restaurants — lequel ?</p>
+      <div className="min-h-screen flex items-center justify-center bg-bg bg-app-gradient px-4">
+        <div className="w-full max-w-[380px]">
+          <div className={`bg-surface border border-border rounded-card-lg ${cardShadow} p-6 flex flex-col gap-5`}>
+            <div className="flex flex-col items-center gap-3 text-center">
+              <AuthBrandMark />
+              <p className="text-sm text-text-muted">Ce compte est lié à plusieurs restaurants — lequel ?</p>
+            </div>
 
-            <div className="space-y-2">
+            <div className="flex flex-col gap-2">
               {restaurantChoices.map((r) => (
                 <button
                   key={r.restaurantId}
                   onClick={() => handleChooseRestaurant(r.restaurantId)}
                   disabled={isSubmitting}
-                  className="w-full min-h-[44px] text-left px-4 rounded-lg border border-slate-300 hover:border-slate-900 disabled:opacity-50"
+                  className="w-full min-h-[44px] text-left px-4 rounded-card-md border border-border hover:border-border-strong transition-colors disabled:opacity-50"
                 >
                   {r.restaurantName}
                 </button>
@@ -69,12 +80,12 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mt-4">{error}</p>
+              <p className="text-sm text-danger bg-danger-soft border border-danger/30 rounded-card-md px-3 py-2">{error}</p>
             )}
 
             <button
               onClick={() => setRestaurantChoices(null)}
-              className="text-sm text-slate-500 underline mt-6"
+              className="text-sm text-text-muted hover:text-accent text-left"
             >
               ← Retour
             </button>
@@ -86,15 +97,17 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-      <div className="w-full max-w-sm">
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
-          <h1 className="text-2xl font-bold text-slate-900 mb-1">FoodCFO</h1>
-          <p className="text-slate-500 mb-6">Connectez-vous à votre restaurant</p>
+    <div className="min-h-screen flex items-center justify-center bg-bg bg-app-gradient px-4">
+      <div className="w-full max-w-[380px]">
+        <div className={`bg-surface border border-border rounded-card-lg ${cardShadow} p-6 flex flex-col gap-5`}>
+          <div className="flex flex-col items-center gap-3 text-center">
+            <AuthBrandMark />
+            <p className="text-sm text-text-muted">Connectez-vous à votre restaurant</p>
+          </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="email" className={labelClass}>
                 Email
               </label>
               <input
@@ -104,12 +117,12 @@ export default function LoginPage() {
                 autoComplete="username"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
+                className={inputClass}
               />
             </div>
 
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="password" className={labelClass}>
                 Mot de passe
               </label>
               <input
@@ -119,29 +132,27 @@ export default function LoginPage() {
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full min-h-[44px] rounded-lg border border-slate-300 px-3 text-base focus:outline-none focus:ring-2 focus:ring-slate-900"
+                className={inputClass}
               />
-              <Link to="/forgot-password" className="text-sm text-slate-500 underline mt-1 inline-block">
-                Mot de passe oublié ?
-              </Link>
+              <div className="flex justify-end -mt-1">
+                <Link to="/forgot-password" className="text-xs text-text-muted hover:text-accent">
+                  Mot de passe oublié ?
+                </Link>
+              </div>
             </div>
 
             {error && (
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
+              <p className="text-sm text-danger bg-danger-soft border border-danger/30 rounded-card-md px-3 py-2">{error}</p>
             )}
 
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full min-h-[44px] rounded-lg bg-slate-900 text-white font-medium disabled:opacity-50"
-            >
+            <button type="submit" disabled={isSubmitting} className={primaryBtnClass}>
               {isSubmitting ? 'Connexion…' : 'Se connecter'}
             </button>
           </form>
 
-          <p className="text-sm text-slate-500 mt-6 text-center">
+          <p className="text-sm text-text-muted text-center">
             Pas encore de restaurant ?{' '}
-            <Link to="/onboarding" className="text-slate-900 font-medium underline">
+            <Link to="/onboarding" className="text-accent font-semibold hover:underline">
               Créer un compte
             </Link>
           </p>
